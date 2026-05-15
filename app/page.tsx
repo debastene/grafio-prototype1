@@ -16,16 +16,26 @@ import {
   Globe, FileDown, Layers, Eye, ArrowRight, Star, Check,
 } from "lucide-react";
 
-const features = [
-  { icon: Brain, title: "AI Auto Chart", desc: "Algoritma kami pilihkan visualisasi paling tepat berdasarkan tipe & distribusi data." },
-  { icon: MessageSquare, title: "Natural Language Query", desc: "Tanya ke datamu pakai bahasa biasa: \"penjualan tertinggi minggu ini?\"" },
-  { icon: Wand2, title: "Insight Generator", desc: "AI menulis ringkasan, trend, dan rekomendasi aksi otomatis dalam Bahasa Indonesia." },
-  { icon: Workflow, title: "Auto Pipeline", desc: "Cleaning, type-inference, dan join multi-file otomatis tanpa nulis kode." },
-  { icon: Eye, title: "Anomaly Detection", desc: "Deteksi outlier, drift, dan pola tidak biasa dengan z-score & IQR analysis." },
-  { icon: FileDown, title: "PDF & PPT Export", desc: "Hasilkan laporan profesional siap presentasi dalam 1 klik." },
-  { icon: Layers, title: "Dashboard Builder", desc: "Drag-drop chart untuk bikin dashboard interaktif yang bisa di-share." },
-  { icon: ShieldCheck, title: "Privacy First", desc: "Enkripsi end-to-end, data tidak disimpan setelah analisis selesai." },
+type FeatureAccent = "cyan" | "violet" | "mint" | "coral" | "warning" | "purple";
+const features: { icon: any; title: string; desc: string; accent: FeatureAccent }[] = [
+  { icon: Brain, title: "AI Auto Chart", desc: "Algoritma kami pilihkan visualisasi paling tepat berdasarkan tipe & distribusi data.", accent: "cyan" },
+  { icon: MessageSquare, title: "Natural Language Query", desc: "Tanya ke datamu pakai bahasa biasa: \"penjualan tertinggi minggu ini?\"", accent: "violet" },
+  { icon: Wand2, title: "Insight Generator", desc: "AI menulis ringkasan, trend, dan rekomendasi aksi otomatis dalam Bahasa Indonesia.", accent: "mint" },
+  { icon: Workflow, title: "Auto Pipeline", desc: "Cleaning, type-inference, dan join multi-file otomatis tanpa nulis kode.", accent: "warning" },
+  { icon: Eye, title: "Anomaly Detection", desc: "Deteksi outlier, drift, dan pola tidak biasa dengan z-score & IQR analysis.", accent: "coral" },
+  { icon: FileDown, title: "PDF & PPT Export", desc: "Hasilkan laporan profesional siap presentasi dalam 1 klik.", accent: "cyan" },
+  { icon: Layers, title: "Dashboard Builder", desc: "Drag-drop chart untuk bikin dashboard interaktif yang bisa di-share.", accent: "purple" },
+  { icon: ShieldCheck, title: "Privacy First", desc: "Enkripsi end-to-end, data tidak disimpan setelah analisis selesai.", accent: "mint" },
 ];
+
+const ACCENT_STYLES: Record<FeatureAccent, { bg: string; ring: string; icon: string; glow: string }> = {
+  cyan:    { bg: "bg-cyan/12",    ring: "border-cyan/30",    icon: "text-cyan",       glow: "group-hover:shadow-glow" },
+  violet:  { bg: "bg-violet/15",  ring: "border-violet/30",  icon: "text-violetSoft", glow: "group-hover:shadow-glow-violet" },
+  mint:    { bg: "bg-mint/12",    ring: "border-mint/30",    icon: "text-mint",       glow: "group-hover:shadow-[0_8px_40px_-8px_rgba(0,255,179,0.4)]" },
+  coral:   { bg: "bg-coral/15",   ring: "border-coral/30",   icon: "text-coral",      glow: "group-hover:shadow-[0_8px_40px_-8px_rgba(255,111,181,0.4)]" },
+  warning: { bg: "bg-warning/12", ring: "border-warning/30", icon: "text-warning",    glow: "group-hover:shadow-[0_8px_40px_-8px_rgba(255,181,71,0.4)]" },
+  purple:  { bg: "bg-purple/15",  ring: "border-purple/30",  icon: "text-purple",     glow: "group-hover:shadow-glow-purple" },
+};
 
 const integrations = [
   "CSV", "Excel", "JSON", "Parquet", "Feather", "Arrow", "Pickle",
@@ -51,9 +61,12 @@ export default function Landing() {
         <div className="absolute inset-0 grid-bg pointer-events-none" />
         <div className="relative max-w-7xl mx-auto px-6 grid lg:grid-cols-2 gap-12 items-center">
           <div className="reveal">
-            <span className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.25em] text-cyan border border-cyan/30 bg-cyan/5 px-3 py-1.5 rounded-full mb-6">
-              <Sparkles className="w-3 h-3" />
-              AI-Powered Visualization v2.0
+            <span className="inline-flex items-center gap-2 text-xs uppercase tracking-[0.25em] text-cyan border border-cyan/30 bg-cyan/5 px-3 py-1.5 rounded-full mb-6 backdrop-blur-sm">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan"></span>
+              </span>
+              AI-Powered Visualization · v2.0 Live
             </span>
             <h1 className="text-5xl md:text-6xl lg:text-7xl font-extrabold font-syne leading-[1.05] tracking-tight">
               See Beyond <br />
@@ -65,8 +78,9 @@ export default function Landing() {
             </p>
             <div className="mt-9 flex items-center gap-3 flex-wrap">
               <Link href="/dashboard">
-                <Button size="lg">
-                  Mulai Gratis <ArrowRight className="w-4 h-4" />
+                <Button size="lg" className="group">
+                  Coba Sekarang Gratis
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
                 </Button>
               </Link>
               <Link href="/features">
@@ -88,17 +102,18 @@ export default function Landing() {
             </div>
           </div>
 
-          {/* Hero card mock */}
+          {/* Hero card mock — premium dashboard preview */}
           <div className="relative reveal" style={{ animationDelay: "0.15s" }}>
-            <div className="absolute -inset-4 bg-cyan/20 blur-3xl rounded-full pointer-events-none" />
-            <div className="relative glass rounded-2xl p-5 shadow-soft">
+            <div className="absolute -inset-8 bg-cyan/15 blur-3xl rounded-full pointer-events-none" />
+            <div className="absolute -inset-8 bg-violet/15 blur-3xl rounded-full pointer-events-none translate-x-12 translate-y-12" />
+            <div className="relative border-gradient rounded-2xl p-5 shadow-elev-lg">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-danger" />
-                  <div className="w-2 h-2 rounded-full bg-warning" />
-                  <div className="w-2 h-2 rounded-full bg-mint" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-danger/80" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-warning/80" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-mint/80" />
                 </div>
-                <span className="text-[10px] uppercase tracking-widest text-muted">grafio.app/dashboard</span>
+                <span className="text-[10px] uppercase tracking-widest text-muted font-mono">grafio.app/dashboard</span>
               </div>
               <div className="grid grid-cols-3 gap-3 mb-4">
                 <KpiCard label="Revenue" value="Rp 324M" change={12.4} spark={[20, 30, 28, 41, 38, 52, 60]} color="#00D4FF" />
@@ -148,24 +163,30 @@ export default function Landing() {
           title="3 Langkah dari Data ke Insight"
           description="Tanpa setup, tanpa coding. Cukup upload, biarkan AI bekerja, dan dapatkan dashboard siap presentasi."
         />
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-3 gap-6 relative">
+          {/* Connecting line in desktop */}
+          <div className="hidden md:block absolute top-12 left-[16%] right-[16%] h-px bg-gradient-to-r from-transparent via-cyan/40 to-transparent pointer-events-none" />
           {[
             { num: "01", icon: FileSpreadsheet, title: "Upload Data", desc: "Drop CSV, Excel, Parquet, JSON, atau koneksi langsung ke database." },
             { num: "02", icon: Brain, title: "AI Analisis", desc: "Auto-clean, detect type, pilih chart terbaik, generate insight & rekomendasi." },
             { num: "03", icon: BarChart3, title: "Hasil Instan", desc: "Dashboard interaktif, PDF report, dan PPT slide siap di-share." },
-          ].map((s) => (
-            <Card key={s.num} hover className="relative overflow-hidden">
-              <span className="absolute -top-2 -right-2 text-7xl font-syne font-extrabold text-cyan/5 select-none">
-                {s.num}
-              </span>
-              <div className="relative">
-                <div className="w-12 h-12 rounded-lg bg-cyan/10 border border-cyan/30 flex items-center justify-center mb-4">
-                  <s.icon className="w-5 h-5 text-cyan" />
+          ].map((s, i) => (
+            <div key={s.num} className="relative group">
+              {/* Step number circle (replaces watermark) */}
+              <div className="relative mx-auto w-24 h-24 mb-6 flex items-center justify-center">
+                <div className="absolute inset-0 bg-cyan/10 rounded-full blur-2xl group-hover:bg-cyan/20 transition-colors" />
+                <div className="relative w-24 h-24 rounded-full border-2 border-cyan/30 bg-bgSurface flex items-center justify-center shadow-soft">
+                  <span className="font-syne font-extrabold text-2xl text-gradient-cyan">{s.num}</span>
                 </div>
+                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-10 h-10 rounded-xl bg-cyan/15 border border-cyan/40 flex items-center justify-center backdrop-blur-sm">
+                  <s.icon className="w-4 h-4 text-cyan" />
+                </div>
+              </div>
+              <div className="text-center px-2">
                 <h3 className="font-syne font-bold text-white text-lg mb-2">{s.title}</h3>
                 <p className="text-muted text-sm leading-relaxed">{s.desc}</p>
               </div>
-            </Card>
+            </div>
           ))}
         </div>
       </section>
@@ -241,26 +262,32 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* FEATURES GRID */}
-      <section className="max-w-7xl mx-auto px-6 py-24">
-        <SectionHeader
-          eyebrow="Fitur Unggulan"
-          title="Lebih Cerdas, Lebih Cepat, Lebih Indah"
-          description="Built untuk data analyst, scientist, marketer, dan founder. Setiap detail dirancang agar kamu bisa fokus pada cerita di balik angka."
-        />
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
-          {features.map((f, i) => (
-            <div
-              key={i}
-              className="glass rounded-xl p-5 group hover:border-cyan/40 hover:-translate-y-1 transition-all duration-300"
-            >
-              <div className="w-10 h-10 rounded-lg bg-cyan/10 border border-cyan/30 flex items-center justify-center mb-4 group-hover:bg-cyan group-hover:text-bgDeep transition-all">
-                <f.icon className="w-5 h-5 text-cyan group-hover:text-bgDeep" />
-              </div>
-              <h3 className="font-syne font-semibold text-white mb-1.5">{f.title}</h3>
-              <p className="text-muted text-sm leading-relaxed">{f.desc}</p>
-            </div>
-          ))}
+      {/* FEATURES GRID — colored icon cards ala modern AI products */}
+      <section className="max-w-7xl mx-auto px-6 py-24 relative">
+        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[480px] bg-grad-mesh opacity-50 pointer-events-none" />
+        <div className="relative">
+          <SectionHeader
+            eyebrow="Fitur Unggulan"
+            title="Lebih Cerdas, Lebih Cepat, Lebih Indah"
+            description="Built untuk data analyst, scientist, marketer, dan founder. Setiap detail dirancang agar kamu bisa fokus pada cerita di balik angka."
+          />
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {features.map((f, i) => {
+              const a = ACCENT_STYLES[f.accent];
+              return (
+                <div
+                  key={i}
+                  className={`group glass rounded-2xl p-5 hover-lift transition-all duration-300 ${a.glow}`}
+                >
+                  <div className={`w-12 h-12 rounded-xl ${a.bg} border ${a.ring} flex items-center justify-center mb-5 transition-transform duration-300 group-hover:scale-110`}>
+                    <f.icon className={`w-5 h-5 ${a.icon}`} />
+                  </div>
+                  <h3 className="font-syne font-semibold text-white mb-1.5 text-base">{f.title}</h3>
+                  <p className="text-muted text-sm leading-relaxed">{f.desc}</p>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </section>
 
@@ -324,15 +351,20 @@ export default function Landing() {
         />
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
           {testimonials.map((t, i) => (
-            <Card key={i} hover>
-              <div className="flex gap-0.5 mb-3">
+            <div
+              key={i}
+              className="group glass rounded-2xl p-6 hover-lift hover:border-cyan/30 transition-all duration-300 shadow-soft flex flex-col"
+            >
+              <div className="flex gap-0.5 mb-4">
                 {Array.from({ length: t.rating }).map((_, j) => (
                   <Star key={j} className="w-3.5 h-3.5 fill-cyan text-cyan" />
                 ))}
               </div>
-              <p className="text-sm text-white mb-4 leading-relaxed">&ldquo;{t.quote}&rdquo;</p>
-              <div className="flex items-center gap-3 pt-3 border-t border-borderColor">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan to-purple flex items-center justify-center text-bgDeep font-bold text-xs">
+              <p className="text-sm text-white/90 mb-5 leading-relaxed flex-1 italic">
+                &ldquo;{t.quote}&rdquo;
+              </p>
+              <div className="flex items-center gap-3 pt-4 border-t border-borderColor">
+                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-cyan via-cyanSoft to-violet flex items-center justify-center text-bgDeep font-bold text-sm shadow-soft">
                   {t.name[0]}
                 </div>
                 <div>
@@ -340,33 +372,40 @@ export default function Landing() {
                   <p className="text-[10px] text-muted">{t.role}</p>
                 </div>
               </div>
-            </Card>
+            </div>
           ))}
         </div>
       </section>
 
       {/* CTA */}
       <section className="max-w-5xl mx-auto px-6 py-24">
-        <div className="relative overflow-hidden glass rounded-3xl p-10 md:p-16 text-center">
-          <div className="absolute inset-0 bg-grad-hero opacity-60 pointer-events-none" />
-          <div className="absolute -top-20 -right-20 w-60 h-60 bg-cyan/20 blur-3xl rounded-full pointer-events-none" />
+        <div className="relative overflow-hidden border-gradient rounded-3xl p-10 md:p-16 text-center shadow-elev-lg">
+          <div className="absolute inset-0 bg-grad-mesh opacity-70 pointer-events-none" />
+          <div className="glow-orb top-0 right-0 w-72 h-72 bg-cyan/30" />
+          <div className="glow-orb bottom-0 left-0 w-72 h-72 bg-violet/30" />
           <div className="relative">
-            <Logo className="w-16 h-16 text-silver mx-auto mb-6 animate-float" />
-            <h2 className="text-3xl md:text-5xl font-syne font-extrabold text-white mb-4">
-              Siap melihat <span className="text-gradient">cerita di balik angka?</span>
+            <Logo className="w-20 h-20 mx-auto mb-6 animate-float" />
+            <span className="inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.3em] text-cyan border border-cyan/30 bg-cyan/5 px-3 py-1 rounded-full mb-5">
+              Gratis · Tanpa kartu kredit
+            </span>
+            <h2 className="text-3xl md:text-5xl font-syne font-extrabold text-white mb-4 leading-tight">
+              Siap melihat <br className="md:hidden" />
+              <span className="text-gradient-violet">cerita di balik angka?</span>
             </h2>
-            <p className="text-muted max-w-xl mx-auto mb-8">
-              Mulai gratis. Upload file pertamamu, dapatkan dashboard AI dalam 30 detik.
+            <p className="text-muted max-w-xl mx-auto mb-8 text-base leading-relaxed">
+              Upload file pertamamu, dapatkan dashboard AI dengan insight lengkap dalam 30 detik.
+              Tidak perlu install, tidak perlu coding.
             </p>
             <div className="flex items-center justify-center gap-3 flex-wrap">
               <Link href="/dashboard">
-                <Button size="lg">
-                  Coba Gratis <ArrowRight className="w-4 h-4" />
+                <Button size="lg" className="group">
+                  Coba Gratis Sekarang
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
                 </Button>
               </Link>
-              <Link href="/pricing">
+              <Link href="/features">
                 <Button variant="ghost" size="lg">
-                  Lihat Harga
+                  Lihat Semua Fitur
                 </Button>
               </Link>
             </div>

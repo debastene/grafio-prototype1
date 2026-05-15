@@ -46,30 +46,39 @@ export default function Nav() {
   return (
     <nav
       className={`sticky top-0 z-50 w-full transition-all duration-300 ${
-        scrolled ? "backdrop-blur-xl bg-bgDeep/80 border-b border-borderColor" : "bg-transparent"
+        scrolled
+          ? "backdrop-blur-xl bg-bgDeep/85 border-b border-borderColor shadow-soft"
+          : "bg-transparent"
       }`}
     >
-      <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div className="max-w-7xl mx-auto px-6 py-3.5 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2.5 group">
-          <Logo className="w-9 h-9 text-silver group-hover:text-cyan transition-colors" />
+          <Logo className="w-9 h-9 group-hover:scale-105 transition-transform duration-300" />
           <span className="font-syne font-extrabold text-xl tracking-wide text-white group-hover:text-gradient transition-all">
             GRAFIO
           </span>
         </Link>
 
         {/* Desktop */}
-        <div className="hidden md:flex items-center gap-8">
-          {links.map((l) => (
-            <Link
-              key={l.href}
-              href={l.href}
-              className={`text-sm transition-colors ${
-                pathname === l.href ? "text-cyan" : "text-muted hover:text-white"
-              }`}
-            >
-              {l.label}
-            </Link>
-          ))}
+        <div className="hidden md:flex items-center gap-1">
+          {links.map((l) => {
+            const active = pathname === l.href;
+            return (
+              <Link
+                key={l.href}
+                href={l.href}
+                className={`relative text-sm px-3 py-2 rounded-md transition-colors ${
+                  active ? "text-white" : "text-muted hover:text-white"
+                }`}
+              >
+                {l.label}
+                {active && (
+                  <span className="absolute left-1/2 -translate-x-1/2 -bottom-0.5 w-1 h-1 rounded-full bg-cyan shadow-[0_0_8px_rgba(0,212,255,0.8)]" />
+                )}
+              </Link>
+            );
+          })}
+          <span className="w-px h-5 bg-borderColor mx-3" />
 
           {user ? (
             <div className="relative">
@@ -118,10 +127,10 @@ export default function Nav() {
                 Login
               </Link>
               <Link
-                href="/trial"
+                href="/dashboard"
                 className="px-4 py-2 rounded-md bg-cyan text-bgDeep font-semibold text-sm hover:bg-cyanSoft hover:scale-[1.03] transition-all flex items-center gap-1.5 shadow-glow"
               >
-                <Sparkles className="w-3.5 h-3.5" /> Free Trial
+                <Sparkles className="w-3.5 h-3.5" /> Coba Gratis
               </Link>
             </>
           )}
@@ -167,11 +176,11 @@ export default function Nav() {
                   Login
                 </Link>
                 <Link
-                  href="/trial"
+                  href="/dashboard"
                   onClick={() => setOpen(false)}
                   className="px-4 py-2 rounded-md bg-cyan text-bgDeep font-semibold text-sm text-center"
                 >
-                  Free Trial
+                  Coba Gratis
                 </Link>
               </>
             )}

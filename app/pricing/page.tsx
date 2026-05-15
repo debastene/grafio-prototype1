@@ -7,7 +7,7 @@ import Button from "@/components/ui/Button";
 import SectionHeader from "@/components/ui/SectionHeader";
 import Link from "next/link";
 import {
-  Check, Crown, Rocket, Sparkles, GraduationCap, Zap, Gift,
+  Check, Crown, Rocket, Sparkles, GraduationCap, Zap, Gift, Clock,
 } from "lucide-react";
 
 type Tier = {
@@ -21,6 +21,8 @@ type Tier = {
   limits: string[];
   cta: string;
   ctaHref: string;
+  /** Kalau true, paket ini belum dijual — tombol di-disable jadi "Coming Soon". */
+  comingSoon?: boolean;
 };
 
 const tiers: Tier[] = [
@@ -57,8 +59,9 @@ const tiers: Tier[] = [
       "Email support 1×24 jam",
     ],
     limits: ["Limit lebih longgar dari Free", "Verifikasi institusi"],
-    cta: "Pilih Student",
-    ctaHref: "/signup?plan=student",
+    cta: "Coming Soon",
+    ctaHref: "#",
+    comingSoon: true,
   },
   {
     name: "PRO",
@@ -78,8 +81,9 @@ const tiers: Tier[] = [
       "Tetap ada batas token (longgar)",
       "Tambah token: Rp 25k / 100k token",
     ],
-    cta: "Pilih Pro",
-    ctaHref: "/signup?plan=pro",
+    cta: "Coming Soon",
+    ctaHref: "#",
+    comingSoon: true,
   },
   {
     name: "CUSTOM",
@@ -96,8 +100,9 @@ const tiers: Tier[] = [
       "Training tim disertakan",
     ],
     limits: ["Negosiasi sesuai kebutuhan"],
-    cta: "Contact Admin",
-    ctaHref: "/contact#sales",
+    cta: "Coming Soon",
+    ctaHref: "#",
+    comingSoon: true,
   },
 ];
 
@@ -110,35 +115,36 @@ export default function Pricing() {
         <SectionHeader
           eyebrow="Pricing"
           title="Plan Sesuai Kebutuhan Anda"
-          description="Mulai gratis, upgrade kapan saja. Setiap plan punya batasan prompt/token yang transparan — tidak ada biaya tersembunyi."
+          description="Sekarang semua fitur Grafio bisa dipakai GRATIS sebagai pratinjau. Paket berbayar akan segera tersedia."
         />
 
-        {/* FREE TRIAL CTA — full-width banner */}
+        {/* GLOBAL COMING SOON BANNER */}
         <div className="mb-12 max-w-5xl mx-auto">
-          <div className="relative glass rounded-2xl p-6 md:p-8 overflow-hidden">
-            <div className="absolute inset-0 bg-grad-hero opacity-50 pointer-events-none" />
+          <div className="relative glass rounded-2xl p-6 md:p-7 overflow-hidden border border-cyan/20">
+            <div className="absolute inset-0 bg-grad-hero opacity-40 pointer-events-none" />
             <div className="absolute -top-12 -right-12 w-40 h-40 bg-cyan/20 blur-3xl rounded-full pointer-events-none" />
-            <div className="relative flex items-center gap-6 flex-wrap">
-              <div className="w-16 h-16 rounded-2xl bg-cyan/15 border border-cyan/30 flex items-center justify-center flex-shrink-0">
-                <Gift className="w-7 h-7 text-cyan" />
+            <div className="relative flex items-center gap-5 flex-wrap">
+              <div className="w-14 h-14 rounded-2xl bg-cyan/15 border border-cyan/30 flex items-center justify-center flex-shrink-0">
+                <Clock className="w-6 h-6 text-cyan" />
               </div>
               <div className="flex-1 min-w-[260px]">
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
-                  <p className="font-syne font-bold text-white text-xl">
-                    Free Trial Student — 7 Hari Gratis
+                  <p className="font-syne font-bold text-white text-lg">
+                    Pembayaran segera dibuka
                   </p>
-                  <span className="text-[10px] uppercase tracking-widest text-mint bg-mint/10 px-2 py-0.5 rounded-full border border-mint/30">
-                    Tanpa kartu kredit
+                  <span className="text-[10px] uppercase tracking-widest text-cyan bg-cyan/10 px-2 py-0.5 rounded-full border border-cyan/30">
+                    Coming Soon
                   </span>
                 </div>
-                <p className="text-sm text-muted">
-                  Akses semua fitur paket Student selama 7 hari. Cukup verifikasi: nama lengkap,
-                  email, nomor HP, dan link sosial media (IG/TikTok/lainnya).
+                <p className="text-sm text-muted leading-relaxed">
+                  Kami sedang menyiapkan sistem billing yang aman (Stripe + Midtrans). Sementara
+                  itu, <span className="text-cyan font-semibold">semua fitur tersedia gratis</span> untuk
+                  early users yang membantu kami iterasi produk.
                 </p>
               </div>
-              <Link href="/trial">
+              <Link href="/dashboard">
                 <Button size="lg">
-                  <Zap className="w-4 h-4" /> Klaim Free Trial
+                  <Sparkles className="w-4 h-4" /> Coba Sekarang Gratis
                 </Button>
               </Link>
             </div>
@@ -152,13 +158,18 @@ export default function Pricing() {
               key={t.name}
               className={`relative rounded-2xl p-6 transition-all duration-300 flex flex-col ${
                 t.highlight
-                  ? "border-2 border-cyan bg-gradient-to-b from-cyan/10 to-transparent shadow-glow"
+                  ? "border-2 border-cyan/60 bg-gradient-to-b from-cyan/8 to-transparent shadow-glow"
                   : "border border-borderColor bg-bgSurface hover:border-cyan/40"
-              }`}
+              } ${t.comingSoon ? "opacity-90" : ""}`}
             >
               {t.badge && (
                 <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-cyan text-bgDeep text-[10px] uppercase tracking-widest font-bold px-3 py-1 rounded-full whitespace-nowrap">
                   {t.badge}
+                </span>
+              )}
+              {t.comingSoon && !t.badge && (
+                <span className="absolute -top-3 right-4 bg-bgDeep border border-cyan/40 text-cyan text-[10px] uppercase tracking-widest font-semibold px-2.5 py-1 rounded-full whitespace-nowrap flex items-center gap-1">
+                  <Clock className="w-2.5 h-2.5" /> Soon
                 </span>
               )}
               <div className="flex items-center gap-2 mb-3">
@@ -193,16 +204,27 @@ export default function Pricing() {
                 ))}
               </ul>
 
-              <Link href={t.ctaHref}>
-                <Button variant={t.highlight ? "primary" : "ghost"} className="w-full">
-                  {t.cta}
-                </Button>
-              </Link>
+              {t.comingSoon ? (
+                <button
+                  type="button"
+                  disabled
+                  title="Pembayaran sedang dipersiapkan — akan tersedia segera"
+                  className="w-full rounded-md font-medium font-syne tracking-wide px-5 py-2.5 text-sm border border-borderColor text-muted bg-bgGlass cursor-not-allowed inline-flex items-center justify-center gap-2"
+                >
+                  <Clock className="w-3.5 h-3.5" /> Coming Soon
+                </button>
+              ) : (
+                <Link href={t.ctaHref}>
+                  <Button variant={t.highlight ? "primary" : "ghost"} className="w-full">
+                    {t.cta}
+                  </Button>
+                </Link>
+              )}
             </div>
           ))}
         </div>
 
-        {/* TOKEN ADD-ON for Pro */}
+        {/* TOKEN ADD-ON — locked until billing ready */}
         <div className="mt-16 max-w-3xl mx-auto">
           <Card glass>
             <div className="flex items-start gap-3">
@@ -210,11 +232,16 @@ export default function Pricing() {
                 <Zap className="w-5 h-5 text-purple" />
               </div>
               <div className="flex-1">
-                <p className="font-syne font-bold text-white mb-1">Token Top-up untuk Plan Pro</p>
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  <p className="font-syne font-bold text-white">Token Top-up untuk Plan Pro</p>
+                  <span className="text-[10px] uppercase tracking-widest text-cyan bg-cyan/10 px-2 py-0.5 rounded-full border border-cyan/30 flex items-center gap-1">
+                    <Clock className="w-2.5 h-2.5" /> Coming Soon
+                  </span>
+                </div>
                 <p className="text-sm text-muted mb-3">
-                  Habiskan kuota token bulanan? Tambah kapasitas tanpa upgrade plan.
+                  Habiskan kuota token bulanan? Tambah kapasitas tanpa upgrade plan. Akan aktif bersama paket berbayar.
                 </p>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-3 gap-3 opacity-60">
                   <div className="border border-borderColor rounded-md p-3 text-center">
                     <p className="font-mono text-xs text-muted">100K token</p>
                     <p className="font-syne font-bold text-white text-lg mt-1">Rp 25.000</p>

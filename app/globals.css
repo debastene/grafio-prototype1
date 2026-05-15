@@ -8,10 +8,10 @@
   --color-bg-elevated: #0f1a3f;
   --color-border: rgba(255, 255, 255, 0.08);
   --color-cyan: #00d4ff;
-  --color-purple: #7b5ea7;
+  --color-violet: #8b5cf6;
   --color-mint: #00ffb3;
   --color-white: #f0f4ff;
-  --color-muted: #7a88ac;
+  --color-muted: #8b95b7;
 }
 
 * {
@@ -24,12 +24,14 @@ body {
   color: #f0f4ff;
   font-family: var(--font-dm), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
   scroll-behavior: smooth;
 }
 
 h1, h2, h3, h4 {
   font-family: var(--font-syne), system-ui, sans-serif;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
 }
 
 ::selection {
@@ -37,7 +39,7 @@ h1, h2, h3, h4 {
   color: #fff;
 }
 
-/* Custom scrollbar */
+/* === Scrollbar ===================================================== */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: #05081a; }
 ::-webkit-scrollbar-thumb {
@@ -46,7 +48,7 @@ h1, h2, h3, h4 {
 }
 ::-webkit-scrollbar-thumb:hover { background: #00d4ff; }
 
-/* Utility — gradient text */
+/* === Gradient text utilities ======================================= */
 .text-gradient {
   background: linear-gradient(135deg, #fff 0%, #7de3ff 50%, #00d4ff 100%);
   -webkit-background-clip: text;
@@ -55,34 +57,63 @@ h1, h2, h3, h4 {
 }
 
 .text-gradient-cyan {
-  background: linear-gradient(135deg, #00d4ff 0%, #7b5ea7 100%);
+  background: linear-gradient(135deg, #00d4ff 0%, #8b5cf6 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 
-/* Glass card */
+.text-gradient-violet {
+  background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 50%, #00d4ff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* === Glass card (refined) =========================================== */
 .glass {
-  background: linear-gradient(135deg, rgba(15, 26, 63, 0.6) 0%, rgba(11, 26, 72, 0.35) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  background: linear-gradient(135deg, rgba(15, 26, 63, 0.55) 0%, rgba(11, 26, 72, 0.3) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
 }
 
 .glass:hover {
-  border-color: rgba(0, 212, 255, 0.35);
+  border-color: rgba(0, 212, 255, 0.3);
 }
 
-/* Animated grid background */
+.glass-strong {
+  background: linear-gradient(135deg, rgba(20, 35, 80, 0.7) 0%, rgba(15, 26, 63, 0.5) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+}
+
+/* === Backgrounds =================================================== */
 .grid-bg {
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
-  background-size: 48px 48px;
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 56px 56px;
   mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, #000 0%, transparent 75%);
 }
 
-/* Shimmer for loading / hero label */
+.dot-bg {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 24px 24px;
+  mask-image: radial-gradient(ellipse 80% 50% at 50% 50%, #000 0%, transparent 80%);
+}
+
+.glow-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(80px);
+  opacity: 0.55;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* === Shimmer effect ================================================ */
 .shimmer {
   background: linear-gradient(
     90deg,
@@ -96,7 +127,7 @@ h1, h2, h3, h4 {
   color: transparent;
 }
 
-/* Marquee */
+/* === Marquee ======================================================= */
 .marquee {
   display: flex;
   width: max-content;
@@ -107,9 +138,31 @@ h1, h2, h3, h4 {
   to { transform: translateX(-50%); }
 }
 
-/* Reveal animation */
+/* === Reveal animation ============================================== */
 .reveal { animation: fadeUp 0.7s ease-out both; }
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* === Subtle border gradient (cards, hero) ========================== */
+.border-gradient {
+  position: relative;
+  background: linear-gradient(rgba(10, 18, 48, 1), rgba(10, 18, 48, 1)) padding-box,
+              linear-gradient(135deg, rgba(0, 212, 255, 0.4), rgba(139, 92, 246, 0.4)) border-box;
+  border: 1px solid transparent;
+}
+
+/* === Tilt hover lift =============================================== */
+.hover-lift {
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s ease-out;
+}
+.hover-lift:hover {
+  transform: translateY(-4px);
+}
+
+/* === Section divider line ========================================== */
+.divider-gradient {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.3), transparent);
 }
