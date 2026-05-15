@@ -1,0 +1,115 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-bg-deep: #05081a;
+  --color-bg-surface: #0a1230;
+  --color-bg-elevated: #0f1a3f;
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-cyan: #00d4ff;
+  --color-purple: #7b5ea7;
+  --color-mint: #00ffb3;
+  --color-white: #f0f4ff;
+  --color-muted: #7a88ac;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  background: #05081a;
+  color: #f0f4ff;
+  font-family: var(--font-dm), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  scroll-behavior: smooth;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-syne), system-ui, sans-serif;
+  letter-spacing: -0.02em;
+}
+
+::selection {
+  background: rgba(0, 212, 255, 0.25);
+  color: #fff;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: #05081a; }
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(#0f1a3f, #1e3a8a);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover { background: #00d4ff; }
+
+/* Utility — gradient text */
+.text-gradient {
+  background: linear-gradient(135deg, #fff 0%, #7de3ff 50%, #00d4ff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.text-gradient-cyan {
+  background: linear-gradient(135deg, #00d4ff 0%, #7b5ea7 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Glass card */
+.glass {
+  background: linear-gradient(135deg, rgba(15, 26, 63, 0.6) 0%, rgba(11, 26, 72, 0.35) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.glass:hover {
+  border-color: rgba(0, 212, 255, 0.35);
+}
+
+/* Animated grid background */
+.grid-bg {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, #000 0%, transparent 75%);
+}
+
+/* Shimmer for loading / hero label */
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.08) 0%,
+    rgba(0, 212, 255, 0.5) 50%,
+    rgba(255, 255, 255, 0.08) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Marquee */
+.marquee {
+  display: flex;
+  width: max-content;
+  animation: marquee 30s linear infinite;
+}
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+/* Reveal animation */
+.reveal { animation: fadeUp 0.7s ease-out both; }
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
