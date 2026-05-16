@@ -1,10 +1,10 @@
 "use client";
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { Menu, X, Sparkles, LogOut, User as UserIcon } from "lucide-react";
+import { Menu, X, Sparkles, LogOut, User as UserIcon, FolderOpen } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import Logo from "./Logo";
-import { getSession, logout, planLabel, UserProfile, getRemainingTrialDays } from "@/lib/auth/storage";
+import { getSession, logout, planLabel, refreshSession, UserProfile, getRemainingTrialDays } from "@/lib/auth/storage";
 
 const links = [
   { label: "Dashboard", href: "/dashboard" },
@@ -28,14 +28,16 @@ export default function Nav() {
   }, []);
 
   useEffect(() => {
+    // Hydrate from cache immediately, then refresh from Supabase in background.
     setUser(getSession());
+    refreshSession().then((fresh) => setUser(fresh));
     const onStorage = () => setUser(getSession());
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, [pathname]);
 
-  const onLogout = () => {
-    logout();
+  const onLogout = async () => {
+    await logout();
     setUser(null);
     setMenuOpen(false);
     router.push("/");
@@ -112,6 +114,13 @@ export default function Nav() {
                   >
                     <UserIcon className="w-3.5 h-3.5" /> Dashboard
                   </Link>
+                  <Link
+                    href="/projects"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-2 px-3 py-2 rounded text-sm text-muted hover:bg-bgElevated hover:text-white"
+                  >
+                    <FolderOpen className="w-3.5 h-3.5" /> Project History
+                  </Link>
                   <button
                     onClick={onLogout}
                     className="w-full flex items-center gap-2 px-3 py-2 rounded text-sm text-danger hover:bg-bgElevated"
@@ -163,6 +172,13 @@ export default function Nav() {
                 <p className="text-xs text-white">
                   {user.name} <span className="text-cyan ml-1">{planLabel(user.plan)}</span>
                 </p>
+                <Link
+                  href="/projects"
+                  onClick={() => setOpen(false)}
+                  className="text-sm text-muted flex items-center gap-2"
+                >
+                  <FolderOpen className="w-3.5 h-3.5" /> Project History
+                </Link>
                 <button
                   onClick={onLogout}
                   className="text-sm text-danger text-left flex items-center gap-2"

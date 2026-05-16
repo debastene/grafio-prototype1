@@ -14,20 +14,21 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const onSubmit = (e: React.FormEvent) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) return;
     setLoading(true);
     setError(null);
-    setTimeout(() => {
-      const res = login(email, password);
-      setLoading(false);
+    try {
+      const res = await login(email, password);
       if (!res.ok) {
         setError(res.error);
         return;
       }
       router.push("/dashboard");
-    }, 400);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -126,7 +127,7 @@ export default function Login() {
             </Link>
           </p>
           <p className="text-center text-[10px] text-muted/60 mt-3">
-            Prototype: data tersimpan di localStorage browser ini.
+            Akun & project disimpan aman di cloud (Supabase).
           </p>
         </div>
       </div>

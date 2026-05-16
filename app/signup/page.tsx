@@ -33,7 +33,7 @@ function SignupForm() {
     }
   }, [params]);
 
-  const onSubmit = (e: React.FormEvent) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     if (!form.agree) {
@@ -41,8 +41,8 @@ function SignupForm() {
       return;
     }
     setLoading(true);
-    setTimeout(() => {
-      const res = signup({
+    try {
+      const res = await signup({
         name: form.name,
         email: form.email,
         password: form.password,
@@ -50,13 +50,14 @@ function SignupForm() {
         nrp: plan === "student" ? form.nrp : undefined,
         institution: plan === "student" ? form.institution : undefined,
       });
-      setLoading(false);
       if (!res.ok) {
         setError(res.error);
         return;
       }
       router.push("/dashboard");
-    }, 400);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const planMeta: Record<Plan, { label: string; price: string; emoji: string }> = {
@@ -178,7 +179,7 @@ function SignupForm() {
             <Link href="/login" className="text-cyan hover:underline">Login</Link>
           </p>
           <p className="text-center text-[10px] text-muted/60 mt-3">
-            Prototype: data tersimpan di localStorage browser ini.
+            Akun & project disimpan aman di cloud (Supabase). Verifikasi email mungkin diperlukan.
           </p>
         </div>
       </div>

@@ -23,8 +23,12 @@ import LineAreaChart from "@/components/ui/charts/LineAreaChart";
 import {
   Download, Share2, RefreshCw, Filter, Calendar, Sparkles,
   FileText, Copy, Check, Cpu, Database, AlertTriangle, Loader2,
-  Lightbulb, MessageSquare,
+  Lightbulb, MessageSquare, Save, FolderOpen,
 } from "lucide-react";
+import { saveProject } from "@/lib/db/projects";
+import { SUPABASE_CONFIGURED } from "@/lib/db/supabase";
+import { getSession } from "@/lib/auth/storage";
+import Link from "next/link";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu"];
 const SPARK_COLORS = ["#00D4FF", "#00FFB3", "#FF6FB5", "#7B5EA7"];
@@ -38,6 +42,35 @@ export default function Dashboard() {
   const [shareCopied, setShareCopied] = useState(false);
   const [range, setRange] = useState<"1M" | "3M" | "6M" | "1Y">("6M");
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [savedProjectId, setSavedProjectId] = useState<string | null>(null);
+
+  const onSaveProject = async () => {
+    if (!aiResult) return;
+    if (!SUPABASE_CONFIGURED) {
+      setSaveError("Database belum di-setup. Hubungi admin.");
+      setSaveState("error");
+      return;
+    }
+    const session = getSession();
+    if (!session) {
+      // Send user to login, return to dashboard after
+      window.location.href = "/login?next=/dashboard";
+      return;
+    }
+    setSaveState("saving");
+    setSaveError(null);
+    const res = await saveProject({ result: aiResult });
+    if (!res.ok) {
+      setSaveState("error");
+      setSaveError(res.error);
+      return;
+    }
+    setSaveState("saved");
+    setSavedProjectId(res.id);
+    setTimeout(() => setSaveState("idle"), 4000);
+  };
 
   const monthsRange = useMemo(() => {
     if (range === "1M") return MONTHS.slice(-1);
@@ -764,6 +797,50 @@ export default function Dashboard() {
                   </>
                 )}
               </Button>
+
+              {/* Save Project button */}
+              {mode === "ai" && (
+                <button
+                  onClick={onSaveProject}
+                  disabled={saveState === "saving" || saveState === "saved"}
+                  className={`px-4 py-2.5 rounded-md border text-sm flex items-center gap-2 transition-all font-medium ${
+                    saveState === "saved"
+                      ? "border-mint/40 bg-mint/10 text-mint"
+                      : saveState === "error"
+                        ? "border-danger/40 bg-danger/10 text-danger"
+                        : "border-purple/40 bg-purple/10 text-purple hover:bg-purple/20"
+                  }`}
+                  title={saveError ?? undefined}
+                >
+                  {saveState === "saving" ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" /> Menyimpan…
+                    </>
+                  ) : saveState === "saved" ? (
+                    <>
+                      <Check className="w-4 h-4" /> Tersimpan
+                    </>
+                  ) : saveState === "error" ? (
+                    <>
+                      <AlertTriangle className="w-4 h-4" /> Gagal save
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" /> Save Project
+                    </>
+                  )}
+                </button>
+              )}
+
+              {saveState === "saved" && savedProjectId && (
+                <Link
+                  href={`/projects/${savedProjectId}`}
+                  className="px-4 py-2.5 rounded-md border border-mint/40 bg-mint/10 text-mint text-sm flex items-center gap-2 hover:bg-mint/20 transition-all"
+                >
+                  <FolderOpen className="w-4 h-4" /> Buka project
+                </Link>
+              )}
+
               <button
                 onClick={onShare}
                 className="ml-auto px-4 py-2.5 rounded-md border border-borderColor text-white hover:border-cyan hover:text-cyan transition-colors text-sm flex items-center gap-2"
@@ -779,6 +856,9 @@ export default function Dashboard() {
                 <Copy className="w-4 h-4" /> Salin Link
               </button>
             </div>
+            {saveError && saveState === "error" && (
+              <p className="text-xs text-danger -mt-2">{saveError}</p>
+            )}
           </div>
         )}
       </div>

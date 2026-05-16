@@ -22,7 +22,7 @@ export default function TrialPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const onSubmit = (e: React.FormEvent) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     if (!form.agree) {
@@ -30,8 +30,8 @@ export default function TrialPage() {
       return;
     }
     setLoading(true);
-    setTimeout(() => {
-      const res = signup({
+    try {
+      const res = await signup({
         name: form.name,
         email: form.email,
         password: form.password,
@@ -40,13 +40,14 @@ export default function TrialPage() {
         socialMedia: form.socialMedia,
         trialDays: 7,
       });
-      setLoading(false);
       if (!res.ok) {
         setError(res.error);
         return;
       }
       router.push("/dashboard");
-    }, 400);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
