@@ -44,7 +44,11 @@ export default function TrialPage() {
         setError(res.error);
         return;
       }
-      router.push("/dashboard");
+      if (res.needsEmailConfirmation) {
+        router.push(`/auth/verify?email=${encodeURIComponent(form.email)}`);
+      } else {
+        router.push("/dashboard");
+      }
     } finally {
       setLoading(false);
     }

@@ -101,7 +101,7 @@ export type SignupInput = {
 };
 
 export type SignupResult =
-  | { ok: true; user: UserProfile }
+  | { ok: true; user: UserProfile; needsEmailConfirmation: boolean }
   | { ok: false; error: string };
 
 export async function signup(input: SignupInput): Promise<SignupResult> {
@@ -134,12 +134,18 @@ export async function signup(input: SignupInput): Promise<SignupResult> {
       ? new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000).toISOString()
       : undefined;
 
+  // Build callback URL pointing to our /auth/callback route. Supabase email
+  // template uses {{ .ConfirmationURL }} which honors this redirect.
+  const origin = isBrowser() ? window.location.origin : "";
+  const emailRedirectTo = `${origin}/auth/callback?next=/dashboard`;
+
   // Supabase auth signup. user_metadata is read by handle_new_user() trigger
   // which creates the matching profile row.
   const { data, error } = await sb.auth.signUp({
     email,
     password: input.password,
     options: {
+      emailRedirectTo,
       data: {
         name: input.name,
         plan: input.plan,
@@ -159,6 +165,11 @@ export async function signup(input: SignupInput): Promise<SignupResult> {
     return { ok: false, error: "Signup gagal — coba lagi." };
   }
 
+  // When Supabase has email confirmation enabled, data.session === null until
+  // the user clicks the confirmation link. We use this signal to redirect to
+  // the verify-email page instead of dropping them on /dashboard.
+  const needsEmailConfirmation = !data.session;
+
   // Build the UserProfile from the data we know (trigger creates DB row async).
   const profile: UserProfile = {
     id: data.user.id,
@@ -172,8 +183,12 @@ export async function signup(input: SignupInput): Promise<SignupResult> {
     nrp: input.nrp,
     institution: input.institution,
   };
-  setCache(profile);
-  return { ok: true, user: profile };
+
+  // Only cache the session when user is actually logged in (no confirmation pending).
+  if (!needsEmailConfirmation) {
+    setCache(profile);
+  }
+  return { ok: true, user: profile, needsEmailConfirmation };
 }
 
 // =============================================================================
@@ -286,6 +301,26 @@ export function getRemainingTrialDays(user: UserProfile): number | null {
   if (user.plan !== "trial" || !user.trialEndsAt) return null;
   const ms = new Date(user.trialEndsAt).getTime() - Date.now();
   return Math.max(0, Math.ceil(ms / (24 * 60 * 60 * 1000)));
+}
+
+/**
+ * Resend the email confirmation link to the given address.
+ * Returns ok:true even if the user is already confirmed (Supabase treats it as no-op).
+ */
+export async function resendConfirmation(email: string): Promise<{ ok: boolean; error?: string }> {
+  if (!SUPABASE_CONFIGURED) return { ok: false, error: "Database belum di-setup." };
+  const sb = getBrowserSupabase();
+  if (!sb) return { ok: false, error: "Supabase client unavailable." };
+  const origin = isBrowser() ? window.location.origin : "";
+  const { error } = await sb.auth.resend({
+    type: "signup",
+    email: email.trim().toLowerCase(),
+    options: {
+      emailRedirectTo: `${origin}/auth/callback?next=/dashboard`,
+    },
+  });
+  if (error) return { ok: false, error: friendlyAuthError(error.message) };
+  return { ok: true };
 }
 
 export function planLabel(plan: Plan): string {

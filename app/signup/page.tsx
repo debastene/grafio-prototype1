@@ -54,7 +54,13 @@ function SignupForm() {
         setError(res.error);
         return;
       }
-      router.push("/dashboard");
+      // If Supabase email confirmation is on, go to the "check your email" page.
+      // Otherwise the user is already logged in → drop them on the dashboard.
+      if (res.needsEmailConfirmation) {
+        router.push(`/auth/verify?email=${encodeURIComponent(form.email)}`);
+      } else {
+        router.push("/dashboard");
+      }
     } finally {
       setLoading(false);
     }

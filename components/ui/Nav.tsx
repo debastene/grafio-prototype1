@@ -131,8 +131,11 @@ export default function Nav() {
               )}
             </div>
           ) : (
-            <>
-              <Link href="/login" className="text-sm text-muted hover:text-white transition-colors">
+            <div className="flex items-center gap-3">
+              <Link
+                href="/login"
+                className="text-sm text-muted hover:text-white transition-colors px-3 py-2"
+              >
                 Login
               </Link>
               <Link
@@ -141,7 +144,7 @@ export default function Nav() {
               >
                 <Sparkles className="w-3.5 h-3.5" /> Coba Gratis
               </Link>
-            </>
+            </div>
           )}
         </div>
 
