@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Sparkles, Send, Loader2, AlertTriangle, Cpu } from "lucide-react";
 import { analyzeFile, quickInspect, EngineResult, Inspection } from "@/lib/engine";
-import ClarificationPanel, { ConfirmConfig } from "./ClarificationPanel";
+import DataPrepWizard, { ConfirmConfig } from "./DataPrepWizard";
 
 export type AiResult = EngineResult;
 
@@ -82,6 +82,7 @@ export default function AnalysisLauncher({ files, onComplete }: Props) {
               rowCount: result.rowCount,
               domain: `${result.domain.name}${result.domain.description ? " — " + result.domain.description : ""}`,
               userPrompt: config.prompt,
+              userContext: config.contextNote,
               columns: result.profile.slice(0, 20).map((p) => ({
                 name: p.name,
                 type: p.type,
@@ -119,6 +120,9 @@ export default function AnalysisLauncher({ files, onComplete }: Props) {
           if (typeof ai.summary === "string" && ai.summary.length > 0) {
             result.summary = ai.summary;
           }
+          if (typeof ai.conclusion === "string" && ai.conclusion.length > 0) {
+            result.conclusion = ai.conclusion;
+          }
           if (Array.isArray(ai.insights) && ai.insights.length > 0) {
             result.insights = ai.insights;
           }
@@ -126,6 +130,10 @@ export default function AnalysisLauncher({ files, onComplete }: Props) {
             ...(result._meta ?? {}),
             model: ai._model ?? result._meta?.model,
           };
+        }
+        // Store user-provided context for downstream use (chat, etc.)
+        if (config.contextNote) {
+          result.userContext = config.contextNote;
         }
         // If AI fails, we silently keep engine output — never block analysis.
       } catch {
@@ -141,10 +149,10 @@ export default function AnalysisLauncher({ files, onComplete }: Props) {
     }
   };
 
-  // ===== STAGE: CLARIFY =====
+  // ===== STAGE: CLARIFY (multi-step wizard) =====
   if (stage === "clarify" && inspection) {
     return (
-      <ClarificationPanel
+      <DataPrepWizard
         inspection={inspection}
         initialPrompt={prompt}
         onConfirm={runFullAnalysis}

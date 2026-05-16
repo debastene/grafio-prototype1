@@ -191,6 +191,79 @@ export function generateKpis(analysis: Analysis, profiles: ColProfile[]): Kpi[] 
   return out;
 }
 
+/**
+ * Engine's own narrative conclusion in plain Bahasa Indonesia.
+ * This is the FALLBACK when AI is offline — gives a meaningful takeaway
+ * instead of a generic stat dump.
+ */
+export function generateConclusion(
+  analysis: Analysis,
+  profiles: ColProfile[],
+  domain?: Domain,
+): string {
+  const parts: string[] = [];
+
+  const strongTrends = analysis.trends.filter(
+    (t) => t.direction !== "datar" && Math.abs(t.pctChange) > 8 && t.r2 > 0.3,
+  );
+  const topCorr = analysis.correlations[0];
+  const totalAnomalies = analysis.anomalies.reduce((sum, a) => sum + a.count, 0);
+
+  // Open with domain framing
+  if (domain && domain.id !== "generic") {
+    parts.push(`Secara keseluruhan data ${domain.name.toLowerCase()} ini`);
+  } else {
+    parts.push("Secara keseluruhan data ini");
+  }
+
+  // Body: lead with the strongest signal
+  if (strongTrends.length > 0) {
+    const t = strongTrends[0];
+    const mood = t.direction === "naik"
+      ? Math.abs(t.pctChange) > 20 ? "menunjukkan momentum yang sangat panas" : "menunjukkan tren yang menanjak"
+      : Math.abs(t.pctChange) > 20 ? "sedang mengalami penurunan tajam" : "cenderung melemah";
+    const sentiment = t.r2 > 0.7 ? "secara konsisten" : t.r2 > 0.4 ? "meskipun fluktuatif" : "namun tidak stabil";
+    parts.push(
+      `${mood} di ${t.column} (${t.direction === "naik" ? "+" : ""}${t.pctChange.toFixed(1)}%) — pergerakan ini ${sentiment}.`,
+    );
+  } else if (topCorr && Math.abs(topCorr.r) > 0.6) {
+    const ana = topCorr.r > 0
+      ? "bergerak hampir berbarengan"
+      : "bergerak berlawanan arah";
+    parts.push(
+      `memperlihatkan hubungan kuat antara ${topCorr.a} dan ${topCorr.b} — keduanya ${ana} (kekuatan ${topCorr.strength}).`,
+    );
+  } else if (analysis.segments.length > 0 && analysis.segments[0].spread > 0.4) {
+    const s = analysis.segments[0];
+    parts.push(
+      `memperlihatkan ketimpangan jelas di ${s.metricCol}: ${s.topGroup.name} jauh di atas ${s.bottomGroup.name} (selisih ${(s.spread * 100).toFixed(0)}%).`,
+    );
+  } else {
+    parts.push(`relatif stabil tanpa tren tajam — namun masih ada pola yang layak digali lebih dalam.`);
+  }
+
+  // Anomaly note (if significant)
+  if (totalAnomalies > 0 && totalAnomalies > analysis.rowCount * 0.02) {
+    parts.push(
+      `Perlu diingat: ada ${totalAnomalies} titik data yang menjauh dari kerumunan — ini bisa jadi peluang investigasi atau data error yang perlu diverifikasi.`,
+    );
+  }
+
+  // Forward-looking suggestion
+  const forecastTrend = strongTrends.find((t) => t.forecast.length > 0 && t.r2 > 0.5);
+  if (forecastTrend) {
+    parts.push(
+      `Bila pola ini bertahan, ${forecastTrend.column} berpotensi mencapai sekitar ${forecastTrend.forecast[2].toFixed(0)} di 3 periode ke depan — ini momentum yang patut diperhatikan.`,
+    );
+  } else if (analysis.kpiCandidates.length > 0) {
+    parts.push(
+      `Untuk pengambilan keputusan, fokuskan perhatian pada ${analysis.kpiCandidates.slice(0, 2).map((c) => c.name).join(" dan ")} — di sinilah sinyal utama dataset ini berada.`,
+    );
+  }
+
+  return parts.join(" ");
+}
+
 export function generateSummary(
   analysis: Analysis,
   profiles: ColProfile[],

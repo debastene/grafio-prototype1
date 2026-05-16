@@ -44,10 +44,10 @@ const integrations = [
 ];
 
 const testimonials = [
-  { name: "Aria Putri", role: "Data Analyst, Tokopedia", quote: "Yang biasanya butuh 2 jam di Excel + Tableau, sekarang 5 menit di Grafio. Insight AI-nya jujur — dia kasih tahu kalau ada anomali yang aku lewat.", rating: 5 },
-  { name: "Reza Hakim", role: "Data Scientist, Gojek", quote: "Akhirnya tool yang ngerti bedanya analyst vs scientist. Saya bisa upload Parquet langsung, ada heatmap korelasi & deteksi outlier.", rating: 5 },
-  { name: "Sintia Rahma", role: "Marketing Manager, UMKM", quote: "Saya bukan orang teknik tapi laporan saya jadi keren banget. Klien selalu kagum dengan visualisasinya.", rating: 5 },
-  { name: "Bayu Pratama", role: "Mahasiswa S2 Statistika", quote: "Skripsi saya selamat. Chart radar & korelasinya tinggal copy ke Word.", rating: 5 },
+  { name: "Aria Putri", role: "Data Analyst, Tokopedia", quote: "Yang biasanya butuh 2 jam, sekarang 5 menit. Kesimpulan AI-nya jujur — dia kasih tahu kalau ada anomali yang aku lewat dan tetap minta konfirmasi konteks.", rating: 5 },
+  { name: "Reza Hakim", role: "Data Scientist, Gojek", quote: "Wizard cleaning-nya beda. Per-anomali aku bisa pilih, jadi data yang sebenarnya emas (lonjakan kampanye) nggak ikut kebersih.", rating: 5 },
+  { name: "Sintia Rahma", role: "Marketing Manager, UMKM", quote: "Saya bukan orang teknik tapi laporannya jadi keren banget. Penjelasannya pakai analogi sehari-hari — saya paham, klien juga paham.", rating: 5 },
+  { name: "Bayu Pratama", role: "Mahasiswa S2 Statistika", quote: "Kesimpulan AI-nya beneran punya sudut pandang, bukan ringkasan generik. Bantu banget buat narasi skripsi.", rating: 5 },
 ];
 
 export default function Landing() {
@@ -235,13 +235,13 @@ export default function Landing() {
           </Card>
           <Card hover>
             <p className="text-xs uppercase tracking-widest text-cyan mb-2">Multi-metric</p>
-            <h4 className="font-syne font-semibold text-white mb-4">Performance Radar</h4>
+            <h4 className="font-syne font-semibold text-white mb-4">Brand Performance Radar</h4>
             <RadarChart
               height={240}
-              labels={["Speed", "Reliability", "UX", "Cost", "Coverage", "Support"]}
+              labels={["Awareness", "Engagement", "Retention", "Loyalty", "Recommend", "Trust"]}
               series={[
-                { label: "Grafio", data: [9, 9, 10, 8, 9, 9], color: "#00D4FF" },
-                { label: "Industry Avg", data: [6, 7, 6, 7, 6, 5], color: "#7B5EA7" },
+                { label: "Q1 2026", data: [7, 8, 6, 7, 8, 8], color: "#00D4FF" },
+                { label: "Q2 2026", data: [9, 9, 8, 8, 9, 9], color: "#7B5EA7" },
               ]}
             />
           </Card>
@@ -291,54 +291,55 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* COMPARISON */}
+      {/* ===== GRAFIO DIFFERENCE — WHY US ===== */}
       <section className="max-w-6xl mx-auto px-6 py-24">
         <SectionHeader
-          eyebrow="Perbandingan"
-          title="Kenapa Pilih Grafio?"
-          description="Dibanding tool tradisional, Grafio unggul di kecepatan, kecerdasan AI, dan estetika."
+          eyebrow="Yang Bikin Beda"
+          title="Pengalaman Analisis yang Sebenarnya"
+          description="Tools statistik biasanya kasih kamu angka. Grafio kasih kamu cerita di balik angka — dengan AI yang ngerti konteks bisnis kamu."
         />
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-muted">
-                <th className="py-3 pr-6 font-medium">Kapabilitas</th>
-                <th className="py-3 px-4 font-medium text-center">
-                  <span className="font-syne font-bold text-white">Grafio</span>
-                </th>
-                <th className="py-3 px-4 font-medium text-center">Excel</th>
-                <th className="py-3 px-4 font-medium text-center">Tableau</th>
-                <th className="py-3 px-4 font-medium text-center">PowerBI</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[
-                ["Auto chart selection (AI)", true, false, false, "Limited"],
-                ["Natural language query", true, false, "Premium", true],
-                ["Auto insight generation", true, false, false, "Limited"],
-                ["Support Parquet/Feather/HDF5", true, false, false, "Plugin"],
-                ["1-click PDF & PPT report", true, false, "Premium", "Premium"],
-                ["Anomaly detection", true, false, "Premium", "Premium"],
-                ["Setup time", "30 detik", "—", "Hari", "Jam"],
-                ["Learning curve", "Mudah", "Mudah", "Curam", "Sedang"],
-              ].map((row, i) => (
-                <tr key={i} className="border-t border-borderColor">
-                  <td className="py-3 pr-6 text-white">{row[0]}</td>
-                  {row.slice(1).map((c, j) => (
-                    <td key={j} className="py-3 px-4 text-center">
-                      {c === true ? (
-                        <Check className="w-4 h-4 text-mint mx-auto" />
-                      ) : c === false ? (
-                        <span className="text-muted">—</span>
-                      ) : (
-                        <span className="text-muted text-xs">{c}</span>
-                      )}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="grid md:grid-cols-2 gap-5">
+          {[
+            {
+              icon: Brain,
+              title: "AI Yang Minta Konfirmasi",
+              desc: "Sebelum analisis, Grafio kasih lihat pemahamannya soal datamu. Kamu koreksi kalau salah. AI ingat konteksmu untuk SEMUA analisis & chat berikutnya.",
+            },
+            {
+              icon: Wand2,
+              title: "Cleaning Per-Anomali",
+              desc: "Bukan tombol \"auto-clean\" yang membabi buta. Setiap anomali yang AI temukan, kamu yang putuskan: perbaiki atau pertahankan. Health Score real-time menunjukkan progress.",
+            },
+            {
+              icon: MessageSquare,
+              title: "Bahasa Manusia, Bukan Jargon",
+              desc: "Korelasi r=0.85 dijelaskan sebagai \"seperti tinggi & berat badan — satu naik, yang lain pasti ikut.\" Orang non-statistik tetap paham.",
+            },
+            {
+              icon: Sparkles,
+              title: "Kesimpulan Bersudut Pandang",
+              desc: "Bukan ringkasan statistik kering. Grafio kasih opini berdasarkan data: \"momentum panas\", \"sinyal melemah\", \"anomali kemungkinan kampanye\".",
+            },
+          ].map((it, i) => (
+            <div key={i} className="glass rounded-2xl p-6 hover:border-cyan/40 transition-all">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-xl bg-cyan/10 border border-cyan/30 flex items-center justify-center flex-shrink-0">
+                  <it.icon className="w-5 h-5 text-cyan" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-syne font-bold text-white text-lg mb-2">{it.title}</h3>
+                  <p className="text-sm text-muted leading-relaxed">{it.desc}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-8 text-center">
+          <Link href="/features">
+            <Button variant="ghost" size="lg">
+              Lihat semua cara Grafio bekerja <ArrowRight className="w-4 h-4" />
+            </Button>
+          </Link>
         </div>
       </section>
 

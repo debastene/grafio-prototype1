@@ -26,6 +26,8 @@ function buildChatContext(ctx: EngineResult) {
     rowCount: ctx.rowCount,
     columnCount: ctx.columnCount,
     domain: `${ctx.domain.name}${ctx.domain.description ? " — " + ctx.domain.description : ""}`,
+    userContext: ctx.userContext,
+    conclusion: ctx.conclusion,
     columns: ctx.profile.slice(0, 30).map((p) => ({
       name: p.name,
       type: p.type,

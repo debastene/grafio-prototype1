@@ -10,7 +10,7 @@
 import { parseText, ParsedTable, ParsedRow } from "./parse";
 import { profileTable, ColProfile } from "./profile";
 import { analyzeTable, Analysis } from "./analyze";
-import { generateInsights, generateKpis, generateSummary, Insight, Kpi } from "./insights";
+import { generateInsights, generateKpis, generateSummary, generateConclusion, Insight, Kpi } from "./insights";
 import { shapeCharts, ChartBundle } from "./charts";
 import { parseIntent, ParsedIntent } from "./intent";
 import { detectDomain, Domain } from "./domain";
@@ -133,6 +133,10 @@ export type AnalyzeOptions = {
 
 export type EngineResult = {
   summary: string;
+  /** AI/engine's own takeaway about the dataset — plain language, opinionated. */
+  conclusion: string;
+  /** User-provided context note (from wizard step 3 confirmation), if any. */
+  userContext?: string;
   insights: Insight[];
   kpis: Kpi[];
   recommendedCharts: string[];
@@ -228,6 +232,7 @@ export async function analyzeFile(
   const insights = generateInsights(analysis, profiles, inspection.domain);
   const kpis = generateKpis(analysis, profiles);
   const summary = generateSummary(analysis, profiles, file.name, inspection.domain);
+  const conclusion = generateConclusion(analysis, profiles, inspection.domain);
 
   // 7. CHARTS
   onProgress?.("Membentuk visualisasi…");
@@ -238,6 +243,7 @@ export async function analyzeFile(
 
   return {
     summary,
+    conclusion,
     insights,
     kpis,
     recommendedCharts: charts.recommended,

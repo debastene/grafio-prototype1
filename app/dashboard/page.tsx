@@ -23,6 +23,7 @@ import LineAreaChart from "@/components/ui/charts/LineAreaChart";
 import {
   Download, Share2, RefreshCw, Filter, Calendar, Sparkles,
   FileText, Copy, Check, Cpu, Database, AlertTriangle, Loader2,
+  Lightbulb, MessageSquare,
 } from "lucide-react";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu"];
@@ -232,6 +233,47 @@ export default function Dashboard() {
                     </div>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* AI CONCLUSION + USER CONTEXT CARD */}
+            {mode === "ai" && aiResult && (aiResult.conclusion || aiResult.userContext) && (
+              <div className="grid md:grid-cols-3 gap-4">
+                {aiResult.conclusion && (
+                  <div className={`glass rounded-2xl p-5 relative overflow-hidden ${aiResult.userContext ? "md:col-span-2" : "md:col-span-3"} border border-purple/20 bg-gradient-to-br from-purple/8 to-transparent`}>
+                    <div className="absolute -bottom-12 -right-12 w-40 h-40 bg-purple/15 blur-3xl rounded-full pointer-events-none" />
+                    <div className="relative flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-purple/15 border border-purple/30 flex items-center justify-center flex-shrink-0">
+                        <Lightbulb className="w-5 h-5 text-purple" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                          <p className="font-syne font-bold text-white">Kesimpulan Grafio</p>
+                          <span className="text-[10px] uppercase tracking-widest text-purple bg-purple/10 px-2 py-0.5 rounded-full border border-purple/30">
+                            sudut pandang AI
+                          </span>
+                        </div>
+                        <p className="text-sm text-white leading-relaxed italic">
+                          {aiResult.conclusion}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {aiResult.userContext && (
+                  <div className="glass rounded-2xl p-5 border border-mint/20 bg-gradient-to-br from-mint/8 to-transparent">
+                    <div className="flex items-center gap-2 mb-2">
+                      <MessageSquare className="w-4 h-4 text-mint" />
+                      <p className="font-syne font-bold text-white text-sm">Konteks Dari Kamu</p>
+                    </div>
+                    <p className="text-xs text-white leading-relaxed italic">
+                      &ldquo;{aiResult.userContext}&rdquo;
+                    </p>
+                    <p className="text-[10px] text-muted mt-2 leading-relaxed">
+                      Grafio menyusun analisis dengan mempertimbangkan konteks ini.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 

@@ -35,6 +35,12 @@ export type CleaningPlan = {
   imputeMissing: "none" | "mean_median" | "drop_rows";
   /** Cap outliers at 1.5×IQR fences (no row drop) */
   capOutliers: boolean;
+  /**
+   * Per-column opt-out. If a column name is in this set, ALL cleaning
+   * operations for that column are skipped (missing-fill, outlier-cap, drop).
+   * Lets user say "fix anomalies in X but leave Y alone".
+   */
+  excludeColumns?: string[];
 };
 
 export const DEFAULT_PLAN: CleaningPlan = {
@@ -43,7 +49,26 @@ export const DEFAULT_PLAN: CleaningPlan = {
   dropDuplicates: true,
   imputeMissing: "none",
   capOutliers: false,
+  excludeColumns: [],
 };
+
+/**
+ * Build a recommended cleaning plan from detected issues.
+ * "AI-assisted" defaults: aggressive auto-fix where safe, conservative on
+ * destructive ops (no row-drop, no constant-column drop).
+ */
+export function recommendPlan(issues: CleaningIssue[]): CleaningPlan {
+  const plan: CleaningPlan = { ...DEFAULT_PLAN, excludeColumns: [] };
+  const hasMissing = issues.some((i) => i.kind === "missing");
+  const hasOutliers = issues.some((i) => i.kind === "outliers");
+  const hasDupes = issues.some((i) => i.kind === "duplicate_rows");
+  const hasEmpty = issues.some((i) => i.kind === "empty_column");
+  if (hasMissing) plan.imputeMissing = "mean_median";
+  if (hasOutliers) plan.capOutliers = true;
+  plan.dropDuplicates = hasDupes;
+  plan.dropEmptyColumns = hasEmpty;
+  return plan;
+}
 
 export type CleaningResult = {
   rows: ParsedRow[];
@@ -133,11 +158,13 @@ export function applyCleaning(
   let cappedCells = 0;
   const removedColumns: string[] = [];
   let removedRows = 0;
+  const excluded = new Set(plan.excludeColumns ?? []);
 
   // 1. Drop empty / constant columns
   if (plan.dropEmptyColumns || plan.dropConstantColumns) {
     const toDrop = new Set<string>();
     for (const p of profiles) {
+      if (excluded.has(p.name)) continue;
       if (plan.dropEmptyColumns && p.missing === p.total) toDrop.add(p.name);
       if (plan.dropConstantColumns && p.unique === 1 && p.total > 0) toDrop.add(p.name);
     }
@@ -170,6 +197,7 @@ export function applyCleaning(
   if (plan.imputeMissing === "mean_median") {
     for (const p of profiles) {
       if (!workingHeaders.includes(p.name)) continue;
+      if (excluded.has(p.name)) continue;
       if (p.summary && p.summary.count > 0) {
         const replacement = p.summary.median;
         for (const r of workingRows) {
@@ -206,6 +234,7 @@ export function applyCleaning(
   if (plan.capOutliers) {
     for (const p of profiles) {
       if (!workingHeaders.includes(p.name)) continue;
+      if (excluded.has(p.name)) continue;
       if (!p.numericVector || !p.summary) continue;
       const cleanedVec = cleanArr(p.numericVector);
       if (cleanedVec.length < 5) continue;
