@@ -1,6 +1,8 @@
 "use client";
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import Logo from "../Logo";
+import ChartDetailModal from "./ChartDetailModal";
+import type { ChartKind, ColumnRole } from "@/lib/charts/tutorials";
 
 type Props = {
   /** Stable identifier for Q&A engine reference & modal targeting (poin 6). */
@@ -15,10 +17,20 @@ type Props = {
   source?: string;
   /** Override the date stamp di footer. Default: hari ini. */
   date?: string;
-  /** AI-generated 1-3 sentence insight tampil di bawah chart (poin 5 — diisi di commit berikutnya). */
+  /** AI-generated 1-3 sentence insight tampil di bawah chart (poin 5). */
   insight?: ReactNode;
-  /** Klik di hover trigger zoom modal (poin 2-3 — diisi di commit berikutnya). */
-  onDiveDeeper?: () => void;
+  /**
+   * Info detail untuk modal "dive deeper" (poin 2):
+   * - chartKind: tipe chart untuk tutorial generator
+   * - columnsUsed: kolom apa saja yang dipakai chart
+   * - renderChart: callback yang render ulang chart dengan height besar untuk modal
+   * Kalau prop ini diisi, hover akan menampilkan "Dive Deeper" button (poin 3).
+   */
+  detail?: {
+    chartKind: ChartKind;
+    columnsUsed: ColumnRole[];
+    renderChart: (height: number) => ReactNode;
+  };
   /** Tambahan className untuk outer wrapper (mis. md:col-span-2). */
   className?: string;
   /** Chart content. */
@@ -47,11 +59,13 @@ export default function ChartFrame({
   source,
   date,
   insight,
-  onDiveDeeper,
+  detail,
   className = "",
   children,
 }: Props) {
   const stamp = date ?? formatDate(new Date());
+  const [modalOpen, setModalOpen] = useState(false);
+  const canDiveDeeper = !!detail;
 
   return (
     <div
@@ -59,7 +73,7 @@ export default function ChartFrame({
       data-chart-name={name}
       data-chart-id={id}
       className={`group relative bg-bgSurface border border-borderColor rounded-xl overflow-hidden shadow-soft transition-all duration-300 ${
-        onDiveDeeper ? "hover:border-cyan/50 hover:shadow-glow hover:-translate-y-0.5" : ""
+        canDiveDeeper ? "hover:border-cyan/50 hover:shadow-glow hover:-translate-y-0.5" : ""
       } ${className}`}
     >
       {/* Top accent bar — subtle gradient strip, jadi screenshot kelihatan punya branding */}
@@ -114,18 +128,34 @@ export default function ChartFrame({
         <span className="font-mono flex-shrink-0">{stamp}</span>
       </div>
 
-      {/* DIVE DEEPER OVERLAY — placeholder untuk poin 3 (commit berikutnya).
-          Saat ini cuma visual treatment di hover, callback belum di-wire. */}
-      {onDiveDeeper && (
+      {/* DIVE DEEPER OVERLAY — hover-to-reveal button (poin 3 di-refine di commit berikutnya) */}
+      {canDiveDeeper && (
         <button
-          onClick={onDiveDeeper}
-          aria-label={`Dive deeper into ${name}`}
+          onClick={() => setModalOpen(true)}
+          aria-label={`Pelajari lebih dalam tentang ${name}`}
           className="absolute inset-0 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-bgDeep/40 backdrop-blur-[1px] flex items-center justify-center cursor-zoom-in"
         >
           <span className="px-4 py-2 rounded-full bg-cyan text-bgDeep text-xs font-syne font-bold shadow-glow flex items-center gap-1.5">
             Dive Deeper →
           </span>
         </button>
+      )}
+
+      {/* FULL-SCREEN DETAIL MODAL */}
+      {detail && (
+        <ChartDetailModal
+          open={modalOpen}
+          onClose={() => setModalOpen(false)}
+          id={id}
+          name={name}
+          category={category}
+          subtitle={subtitle}
+          source={source}
+          insight={typeof insight === "string" ? insight : undefined}
+          chartKind={detail.chartKind}
+          columnsUsed={detail.columnsUsed}
+          renderChart={detail.renderChart}
+        />
       )}
     </div>
   );

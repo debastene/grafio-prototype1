@@ -415,6 +415,33 @@ export default function Dashboard() {
                   }
                   source={mode === "ai" && aiResult ? aiResult.fileName : "Demo dataset"}
                   insight={mode === "ai" ? aiResult?.chartInsights?.["chart-primary"] : undefined}
+                  detail={{
+                    chartKind: "line",
+                    columnsUsed:
+                      mode === "ai" && aiResult
+                        ? [
+                            {
+                              name:
+                                aiResult.analysis.primaryDateCol ??
+                                aiResult.analysis.primaryCategoryCol ??
+                                "kategori / waktu",
+                              role: "axis X (kategori / waktu)",
+                            },
+                            ...aiResult.charts.primary.series.map((s) => ({
+                              name: s.label,
+                              role: "axis Y (nilai numerik)",
+                            })),
+                          ]
+                        : [
+                            { name: "Bulan", role: "axis X (kategori)" },
+                            { name: "Penjualan / Target / Profit", role: "axis Y (nilai)" },
+                          ],
+                    renderChart: (h) => (
+                      <div style={{ height: h }}>
+                        <ChartSwitcher labels={primaryChart.labels} series={primaryChart.series} />
+                      </div>
+                    ),
+                  }}
                 >
                   <ChartSwitcher labels={primaryChart.labels} series={primaryChart.series} />
                 </ChartFrame>
@@ -442,6 +469,14 @@ export default function Dashboard() {
                 subtitle={`Pearson r untuk ${aiResult.analysis.correlationMatrix.columns.length} kolom numerik utama · biru = positif, merah = negatif`}
                 source={aiResult.fileName}
                 insight={aiResult.chartInsights?.["chart-correlation-matrix"]}
+                detail={{
+                  chartKind: "heatmap",
+                  columnsUsed: aiResult.analysis.correlationMatrix.columns.map((c) => ({
+                    name: c,
+                    role: "axis kolom & baris matriks",
+                  })),
+                  renderChart: () => <CorrHeatmap matrix={aiResult.analysis.correlationMatrix!} />,
+                }}
               >
                 <CorrHeatmap matrix={aiResult.analysis.correlationMatrix} />
               </ChartFrame>
@@ -501,6 +536,24 @@ export default function Dashboard() {
                   subtitle={`${aiResult.charts.distribution.labels.length} kategori unik`}
                   source={aiResult.fileName}
                   insight={aiResult.chartInsights?.["chart-distribution"]}
+                  detail={{
+                    chartKind: "doughnut",
+                    columnsUsed: [
+                      {
+                        name: aiResult.analysis.primaryCategoryCol ?? "kategori",
+                        role: "label kategori (slices)",
+                      },
+                      { name: "(count / frekuensi)", role: "nilai per slice" },
+                    ],
+                    renderChart: (h) => (
+                      <DoughnutChart
+                        height={h}
+                        labels={aiResult.charts.distribution!.labels}
+                        data={aiResult.charts.distribution!.data}
+                        centerLabel={aiResult.charts.distribution!.data.reduce((a, b) => a + b, 0).toLocaleString("id")}
+                      />
+                    ),
+                  }}
                 >
                   <DoughnutChart
                     height={240}
@@ -516,6 +569,21 @@ export default function Dashboard() {
                   category="Distribution"
                   subtitle="Komposisi sumber traffic"
                   source="Demo dataset"
+                  detail={{
+                    chartKind: "doughnut",
+                    columnsUsed: [
+                      { name: "channel", role: "label kategori" },
+                      { name: "share %", role: "nilai per channel" },
+                    ],
+                    renderChart: (h) => (
+                      <DoughnutChart
+                        height={h}
+                        labels={["Direct", "SEO", "Ads", "Social"]}
+                        data={[42, 25, 22, 11]}
+                        centerLabel="100%"
+                      />
+                    ),
+                  }}
                 >
                   <DoughnutChart
                     height={220}
@@ -535,6 +603,19 @@ export default function Dashboard() {
                   subtitle="Pola hubungan dua variabel numerik"
                   source={aiResult.fileName}
                   insight={aiResult.chartInsights?.["chart-scatter"]}
+                  detail={{
+                    chartKind: "scatter",
+                    columnsUsed: [
+                      { name: aiResult.charts.scatter.xLabel, role: "axis X (numerik)" },
+                      { name: aiResult.charts.scatter.yLabel, role: "axis Y (numerik)" },
+                    ],
+                    renderChart: (h) => (
+                      <ScatterChart
+                        height={h}
+                        series={[{ label: "Data points", data: aiResult.charts.scatter!.points }]}
+                      />
+                    ),
+                  }}
                 >
                   <ScatterChart
                     height={240}
@@ -548,6 +629,23 @@ export default function Dashboard() {
                   category="Correlation"
                   subtitle="Sensitivitas harga terhadap konversi"
                   source="Demo dataset"
+                  detail={{
+                    chartKind: "scatter",
+                    columnsUsed: [
+                      { name: "price", role: "axis X (harga)" },
+                      { name: "conversion_rate", role: "axis Y (% konversi)" },
+                      { name: "product", role: "legend (grup warna)" },
+                    ],
+                    renderChart: (h) => (
+                      <ScatterChart
+                        height={h}
+                        series={[
+                          { label: "Produk A", data: [{ x: 50, y: 4.2 }, { x: 80, y: 3.8 }, { x: 100, y: 3.4 }, { x: 120, y: 2.8 }, { x: 150, y: 2.4 }, { x: 180, y: 2.0 }] },
+                          { label: "Produk B", data: [{ x: 60, y: 3.6 }, { x: 90, y: 3.2 }, { x: 110, y: 2.9 }, { x: 140, y: 2.5 }, { x: 170, y: 2.1 }] },
+                        ]}
+                      />
+                    ),
+                  }}
                 >
                   <ScatterChart
                     height={240}
@@ -569,6 +667,27 @@ export default function Dashboard() {
                   source={aiResult.fileName}
                   insight={aiResult.chartInsights?.["chart-stacked"]}
                   className="md:col-span-2"
+                  detail={{
+                    chartKind: "bar-stacked",
+                    columnsUsed: [
+                      {
+                        name: aiResult.analysis.primaryCategoryCol ?? "kategori",
+                        role: "axis X (kategori)",
+                      },
+                      ...aiResult.charts.stacked.series.map((s) => ({
+                        name: s.label,
+                        role: "axis Y (stack segment)",
+                      })),
+                    ],
+                    renderChart: (h) => (
+                      <BarChart
+                        stacked
+                        height={h}
+                        labels={aiResult.charts.stacked!.labels}
+                        series={aiResult.charts.stacked!.series}
+                      />
+                    ),
+                  }}
                 >
                   <BarChart
                     stacked
@@ -585,6 +704,23 @@ export default function Dashboard() {
                     category="Multi-metric"
                     subtitle="Perbandingan brand di 6 dimensi"
                     source="Demo dataset"
+                    detail={{
+                      chartKind: "radar",
+                      columnsUsed: [
+                        { name: "dimension", role: "axis radial (label)" },
+                        { name: "score per brand", role: "nilai 0-10 per dimension" },
+                      ],
+                      renderChart: (h) => (
+                        <RadarChart
+                          height={h}
+                          labels={["Speed", "Quality", "Price", "Support", "Reach", "UX"]}
+                          series={[
+                            { label: "Brand A", data: [9, 8, 7, 9, 8, 9] },
+                            { label: "Brand B", data: [6, 7, 9, 6, 7, 6] },
+                          ]}
+                        />
+                      ),
+                    }}
                   >
                     <RadarChart
                       height={240}
@@ -601,6 +737,22 @@ export default function Dashboard() {
                     category="Mixed · Forecast"
                     subtitle="Aktual (bar) vs proyeksi (line)"
                     source="Demo dataset"
+                    detail={{
+                      chartKind: "mixed",
+                      columnsUsed: [
+                        { name: "month", role: "axis X (kategori waktu)" },
+                        { name: "actual_sales", role: "axis Y bar (nilai)" },
+                        { name: "forecast", role: "axis Y line (proyeksi)" },
+                      ],
+                      renderChart: (h) => (
+                        <MixedChart
+                          height={h}
+                          labels={monthsRange}
+                          bars={[{ label: "Aktual", data: demoSales, color: "#00D4FF" }]}
+                          lines={[{ label: "Forecast", data: demoTarget, color: "#7B5EA7" }]}
+                        />
+                      ),
+                    }}
                   >
                     <MixedChart
                       height={220}
@@ -621,6 +773,29 @@ export default function Dashboard() {
                   subtitle="Detail seri utama dalam line area"
                   source={aiResult.fileName}
                   insight={aiResult.chartInsights?.["chart-trend-detail"]}
+                  detail={{
+                    chartKind: "area",
+                    columnsUsed: [
+                      {
+                        name:
+                          aiResult.analysis.primaryDateCol ??
+                          aiResult.analysis.primaryCategoryCol ??
+                          "kategori",
+                        role: "axis X",
+                      },
+                      {
+                        name: aiResult.charts.primary.series[0].label,
+                        role: "axis Y (nilai numerik)",
+                      },
+                    ],
+                    renderChart: (h) => (
+                      <LineAreaChart
+                        height={h}
+                        labels={aiResult.charts.primary.labels}
+                        series={[aiResult.charts.primary.series[0]]}
+                      />
+                    ),
+                  }}
                 >
                   <LineAreaChart
                     height={240}
@@ -639,6 +814,20 @@ export default function Dashboard() {
                     category="Polar Area"
                     subtitle="Proporsi penjualan per kota"
                     source="Demo dataset"
+                    detail={{
+                      chartKind: "polar",
+                      columnsUsed: [
+                        { name: "city", role: "label kategori" },
+                        { name: "share %", role: "panjang area radial" },
+                      ],
+                      renderChart: (h) => (
+                        <PolarChart
+                          height={h}
+                          labels={["Jakarta", "Bandung", "Surabaya", "Medan", "Bali"]}
+                          data={[42, 18, 22, 10, 8]}
+                        />
+                      ),
+                    }}
                   >
                     <PolarChart
                       height={240}
@@ -652,6 +841,25 @@ export default function Dashboard() {
                     category="Segments · Bubble"
                     subtitle="Klaster pelanggan berdasarkan value"
                     source="Demo dataset"
+                    detail={{
+                      chartKind: "bubble",
+                      columnsUsed: [
+                        { name: "recency", role: "axis X" },
+                        { name: "frequency", role: "axis Y" },
+                        { name: "monetary", role: "ukuran bubble (size)" },
+                        { name: "segment", role: "legend (grup warna)" },
+                      ],
+                      renderChart: (h) => (
+                        <BubbleChart
+                          height={h}
+                          series={[
+                            { label: "High value", data: [{ x: 30, y: 80, r: 18 }, { x: 45, y: 75, r: 22 }, { x: 60, y: 90, r: 16 }] },
+                            { label: "Mid", data: [{ x: 25, y: 50, r: 12 }, { x: 40, y: 55, r: 14 }, { x: 55, y: 60, r: 10 }, { x: 70, y: 50, r: 16 }] },
+                            { label: "Low", data: [{ x: 15, y: 25, r: 8 }, { x: 30, y: 20, r: 10 }, { x: 45, y: 30, r: 9 }, { x: 60, y: 22, r: 7 }] },
+                          ]}
+                        />
+                      ),
+                    }}
                   >
                     <BubbleChart
                       height={240}
@@ -669,6 +877,25 @@ export default function Dashboard() {
                     subtitle="Breakdown revenue per tier customer"
                     source="Demo dataset"
                     className="md:col-span-2"
+                    detail={{
+                      chartKind: "bar-stacked",
+                      columnsUsed: [
+                        { name: "month", role: "axis X (kategori waktu)" },
+                        { name: "revenue per tier (Enterprise/SMB/Startup)", role: "axis Y stack segments" },
+                      ],
+                      renderChart: (h) => (
+                        <BarChart
+                          height={h}
+                          stacked
+                          labels={monthsRange}
+                          series={[
+                            { label: "Enterprise", data: demoSales.map((s) => Math.round(s * 0.5)), color: "#00D4FF" },
+                            { label: "SMB", data: demoSales.map((s) => Math.round(s * 0.3)), color: "#7B5EA7" },
+                            { label: "Startup", data: demoSales.map((s) => Math.round(s * 0.2)), color: "#00FFB3" },
+                          ]}
+                        />
+                      ),
+                    }}
                   >
                     <BarChart
                       height={240}
@@ -687,6 +914,30 @@ export default function Dashboard() {
                     category="Heatmap"
                     subtitle="Kepadatan aktivitas per hari & jam"
                     source="Demo dataset"
+                    detail={{
+                      chartKind: "heatmap",
+                      columnsUsed: [
+                        { name: "day_of_week", role: "axis Y (baris)" },
+                        { name: "hour", role: "axis X (kolom)" },
+                        { name: "activity_count", role: "intensitas warna sel" },
+                      ],
+                      renderChart: (h) => (
+                        <Heatmap
+                          height={h}
+                          rows={["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"]}
+                          cols={["08", "10", "12", "14", "16", "18", "20"]}
+                          values={[
+                            [12, 18, 24, 31, 28, 22, 14],
+                            [16, 24, 30, 38, 34, 26, 18],
+                            [18, 28, 35, 42, 38, 30, 20],
+                            [20, 30, 38, 45, 40, 32, 22],
+                            [25, 36, 44, 52, 48, 38, 28],
+                            [10, 14, 18, 22, 26, 30, 24],
+                            [8, 10, 14, 18, 22, 26, 20],
+                          ]}
+                        />
+                      ),
+                    }}
                   >
                     <Heatmap
                       height={240}
