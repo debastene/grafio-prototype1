@@ -153,6 +153,7 @@ export default function AnalysisLauncher({ files, onComplete }: Props) {
   if (stage === "clarify" && inspection) {
     return (
       <DataPrepWizard
+        file={files[0]}
         inspection={inspection}
         initialPrompt={prompt}
         onConfirm={runFullAnalysis}

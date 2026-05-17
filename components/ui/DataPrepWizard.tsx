@@ -11,6 +11,7 @@ import {
   recommendPlan,
 } from "@/lib/engine/clean";
 import { ParsedRow } from "@/lib/engine/parse";
+import CleanedDataDownload from "./CleanedDataDownload";
 import {
   CheckCircle2, AlertTriangle, Sparkles, Settings2,
   WandSparkles, ChevronRight, Loader2, ArrowLeft, Brain,
@@ -31,6 +32,7 @@ type AiClarification = {
 };
 
 type Props = {
+  file: File;
   inspection: Inspection;
   initialPrompt: string;
   onConfirm: (config: ConfirmConfig) => Promise<void>;
@@ -147,7 +149,7 @@ function issueIcon(issue: CleaningIssue) {
 // MAIN COMPONENT
 // ============================================================
 
-export default function DataPrepWizard({ inspection, initialPrompt, onConfirm, onBack }: Props) {
+export default function DataPrepWizard({ file, inspection, initialPrompt, onConfirm, onBack }: Props) {
   const [step, setStep] = useState<Step>("health");
   const [numberFormat, setNumberFormat] = useState<"id" | "en">(inspection.numberFormat.format);
   const [plan, setPlan] = useState<CleaningPlan>(() => ({
@@ -353,6 +355,7 @@ export default function DataPrepWizard({ inspection, initialPrompt, onConfirm, o
 
       {step === "context" && (
         <ContextStep
+          file={file}
           inspection={inspection}
           ai={ai}
           plan={effectivePlan}
@@ -960,9 +963,10 @@ function ToggleRow({
 // ============================================================
 
 function ContextStep({
-  inspection, ai, plan, cleanedPreview, prompt, setPrompt, contextNote, setContextNote,
+  file, inspection, ai, plan, cleanedPreview, prompt, setPrompt, contextNote, setContextNote,
   showContextEditor, setShowContextEditor, numberFormat, onBack, onSubmit, submitting, aiLoading, healthColor,
 }: {
+  file: File;
   inspection: Inspection;
   ai: AiClarification | null;
   plan: CleaningPlan;
@@ -1085,6 +1089,14 @@ function ContextStep({
           </p>
         )}
       </div>
+
+      {/* DOWNLOAD CLEANED DATA (evaluasi 16 Mei — poin 1) */}
+      <CleanedDataDownload
+        file={file}
+        inspection={inspection}
+        plan={plan}
+        numberFormat={numberFormat}
+      />
 
       {/* CONTEXT CONFIRMATION POPUP (poin 4) */}
       <div className="glass rounded-2xl p-5 border border-purple/20 bg-gradient-to-br from-purple/5 to-transparent">

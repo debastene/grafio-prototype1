@@ -6,6 +6,7 @@
  *   mode=narrate   → after engine analysis, AI menulis ulang summary/insights/kpis pakai angka engine
  *   mode=chart     → user klik "Jelaskan chart ini" → AI bercerita tentang 1 chart
  *   mode=followup  → setelah chat reply, generate 3 pertanyaan lanjutan kontekstual
+ *   mode=rename    → AI sarankan nama kolom yang lebih friendly untuk file download
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -72,6 +73,29 @@ Tugas: dalam 3-4 kalimat Bahasa Indonesia natural & santai, jelaskan:
 Hindari jargon. Pakai bahasa pasar/sentimen ("lonjakan", "lesu", "panas", "momentum naik", dst).
 Jangan pakai bullet atau heading. Tulis sebagai paragraf padat. Maks 700 karakter.`;
 
+const SYS_RENAME = `Kamu Grafio AI — pakar penamaan kolom data. User akan download data hasil cleaning.
+Tugas: berdasarkan daftar nama kolom asli + sample 3 baris, sarankan nama kolom yang LEBIH FRIENDLY
+& mudah dipahami orang awam, tapi tetap informatif. Hanya rename yang BENAR-BENAR perlu (nama kurang jelas,
+singkatan ambigu, snake_case acak, dsb). Kalau nama asli sudah bagus, KEMBALIKAN nama yang sama.
+
+Aturan penamaan:
+- Gunakan snake_case lowercase (mis. "tanggal_transaksi", "harga_satuan", "jumlah_pesanan").
+- Singkat tapi jelas: 1-3 kata, maksimum 24 karakter.
+- Bahasa Indonesia kalau domain Indonesia, Inggris kalau domain global.
+- Jangan ubah nama yang sudah jelas seperti "email", "phone", "country", "price", "date".
+- Jangan tambahkan unit di nama kolom (jangan "harga_rp"; cukup "harga").
+
+Output JSON murni:
+{
+  "renames": [
+    { "original": "<nama asli>", "suggested": "<nama baru>", "reason": "<<=10 kata kenapa>" }
+  ]
+}
+
+Aturan tambahan:
+- Sertakan SEMUA kolom (bahkan yang tidak di-rename — set suggested = original, reason = "sudah jelas").
+- Jangan halusinasi: kalau ragu, biarkan nama asli.`;
+
 const SYS_FOLLOWUP = `Kamu Grafio AI. User baru saja dapat jawaban tentang dataset mereka.
 Tugas: hasilkan 3 pertanyaan lanjutan yang RELEVAN dengan percakapan terakhir + kolom dataset yang ada.
 
@@ -106,7 +130,7 @@ Aturan:
 // HANDLER
 // ============================================================
 
-type Mode = "clarify" | "narrate" | "chart" | "followup" | "report";
+type Mode = "clarify" | "narrate" | "chart" | "followup" | "report" | "rename";
 
 export async function POST(req: NextRequest) {
   let body: Record<string, unknown>;
@@ -117,7 +141,7 @@ export async function POST(req: NextRequest) {
   }
 
   const mode = body.mode as Mode;
-  if (!["clarify", "narrate", "chart", "followup", "report"].includes(mode)) {
+  if (!["clarify", "narrate", "chart", "followup", "report", "rename"].includes(mode)) {
     return NextResponse.json({ error: "mode tidak valid" }, { status: 400 });
   }
 
@@ -128,6 +152,7 @@ export async function POST(req: NextRequest) {
     else if (mode === "chart") result = await doChart(body);
     else if (mode === "followup") result = await doFollowup(body);
     else if (mode === "report") result = await doReport(body);
+    else if (mode === "rename") result = await doRename(body);
     return NextResponse.json(result);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";
@@ -412,4 +437,39 @@ Generate 3 pertanyaan lanjutan.`;
     responseFormat: "json_object",
   });
   return safeParseJSON<{ questions: string[] }>(text);
+}
+
+async function doRename(body: Record<string, unknown>) {
+  const ctx = body.context as {
+    headers: string[];
+    domain?: string;
+    sample?: unknown[][];
+  };
+
+  const sampleStr = (ctx.sample ?? [])
+    .slice(0, 3)
+    .map((r) => JSON.stringify(r))
+    .join("\n");
+
+  const userMsg = `Domain data: ${ctx.domain ?? "tidak diketahui"}
+
+Daftar nama kolom asli (${ctx.headers.length} kolom):
+${ctx.headers.map((h) => `- ${h}`).join("\n")}
+
+Sample 3 baris (urut sesuai header):
+${sampleStr || "(tidak ada sample)"}
+
+Sarankan nama yang lebih friendly.`;
+
+  const { text, model } = await callWithFallback(CHAINS.structured, {
+    messages: [
+      { role: "system", content: SYS_RENAME },
+      { role: "user", content: userMsg },
+    ],
+    temperature: 0.3,
+    maxTokens: 900,
+    timeoutMs: 10_000,
+    responseFormat: "json_object",
+  });
+  return { ...safeParseJSON<Record<string, unknown>>(text), _model: model };
 }
