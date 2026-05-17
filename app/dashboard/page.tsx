@@ -19,8 +19,9 @@ import MixedChart from "@/components/ui/charts/MixedChart";
 import Heatmap from "@/components/ui/charts/Heatmap";
 import ChartSwitcher from "@/components/ui/charts/ChartSwitcher";
 import LineAreaChart from "@/components/ui/charts/LineAreaChart";
+import ChartFrame from "@/components/ui/charts/ChartFrame";
 import {
-  Share2, RefreshCw, Calendar, Sparkles,
+  Share2, RefreshCw, Sparkles,
   FileText, Copy, Check, Cpu, Database, AlertTriangle, Loader2,
   Lightbulb, MessageSquare, Save, FolderOpen, X as XIcon,
 } from "lucide-react";
@@ -403,18 +404,19 @@ export default function Dashboard() {
             {/* MAIN CHART + AI CHAT */}
             <div className="grid lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2">
-                <Card>
-                  <div className="flex items-center justify-between mb-2">
-                    <div>
-                      <p className="text-xs uppercase tracking-widest text-cyan">
-                        {mode === "ai" ? "Recommended by Engine" : "Recommended by AI"}
-                      </p>
-                      <h3 className="font-syne font-bold text-white text-lg">{primaryChart.title}</h3>
-                    </div>
-                    <Calendar className="w-4 h-4 text-muted" />
-                  </div>
+                <ChartFrame
+                  id="chart-primary"
+                  name={primaryChart.title}
+                  category={mode === "ai" ? "Chart Utama · Recommended by Engine" : "Chart Utama · Demo"}
+                  subtitle={
+                    mode === "ai" && aiResult
+                      ? `${aiResult.charts.primary.series.length} seri data · ${aiResult.charts.primary.labels.length} titik`
+                      : undefined
+                  }
+                  source={mode === "ai" && aiResult ? aiResult.fileName : "Demo dataset"}
+                >
                   <ChartSwitcher labels={primaryChart.labels} series={primaryChart.series} />
-                </Card>
+                </ChartFrame>
               </div>
               <div>
                 <AiAssistant context={mode === "ai" ? aiResult : null} />
@@ -432,20 +434,15 @@ export default function Dashboard() {
 
             {/* CORRELATION HEATMAP */}
             {mode === "ai" && aiResult?.analysis.correlationMatrix && (
-              <Card>
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-widest text-cyan">Correlation Matrix</p>
-                    <h4 className="font-syne font-semibold text-white text-sm">
-                      Pearson r untuk semua pasangan kolom numerik utama
-                    </h4>
-                  </div>
-                  <span className="text-[10px] text-muted">
-                    biru = positif · merah = negatif
-                  </span>
-                </div>
+              <ChartFrame
+                id="chart-correlation-matrix"
+                name="Matriks Korelasi Pearson"
+                category="Correlation Matrix"
+                subtitle={`Pearson r untuk ${aiResult.analysis.correlationMatrix.columns.length} kolom numerik utama · biru = positif, merah = negatif`}
+                source={aiResult.fileName}
+              >
                 <CorrHeatmap matrix={aiResult.analysis.correlationMatrix} />
-              </Card>
+              </ChartFrame>
             )}
 
             {/* ENGINE-SPECIFIC: TOP CORRELATIONS */}
@@ -491,51 +488,63 @@ export default function Dashboard() {
               </Card>
             )}
 
-            {/* CHART GRID */}
+            {/* CHART GRID — semua chart pakai ChartFrame (screenshot-ready, named) */}
             <div className="grid lg:grid-cols-3 md:grid-cols-2 gap-5">
               {/* Distribution / Doughnut */}
               {mode === "ai" && aiResult?.charts?.distribution ? (
-                <Card>
-                  <p className="text-[10px] uppercase tracking-widest text-cyan">Distribution</p>
-                  <h4 className="font-syne font-semibold text-white text-sm mb-3">
-                    {aiResult.analysis.primaryCategoryCol ?? "Distribusi"}
-                  </h4>
+                <ChartFrame
+                  id="chart-distribution"
+                  name={`Distribusi ${aiResult.analysis.primaryCategoryCol ?? "Kategori"}`}
+                  category="Distribution"
+                  subtitle={`${aiResult.charts.distribution.labels.length} kategori unik`}
+                  source={aiResult.fileName}
+                >
                   <DoughnutChart
                     height={240}
                     labels={aiResult.charts.distribution.labels}
                     data={aiResult.charts.distribution.data}
                     centerLabel={aiResult.charts.distribution.data.reduce((a, b) => a + b, 0).toLocaleString("id")}
                   />
-                </Card>
+                </ChartFrame>
               ) : (
-                <Card>
-                  <p className="text-[10px] uppercase tracking-widest text-cyan">Distribution</p>
-                  <h4 className="font-syne font-semibold text-white text-sm mb-3">Channel Mix</h4>
+                <ChartFrame
+                  id="chart-channel-mix"
+                  name="Channel Mix"
+                  category="Distribution"
+                  subtitle="Komposisi sumber traffic"
+                  source="Demo dataset"
+                >
                   <DoughnutChart
                     height={220}
                     labels={["Direct", "SEO", "Ads", "Social"]}
                     data={[42, 25, 22, 11]}
                     centerLabel="100%"
                   />
-                </Card>
+                </ChartFrame>
               )}
 
               {/* Scatter / Correlation */}
               {mode === "ai" && aiResult?.charts?.scatter ? (
-                <Card>
-                  <p className="text-[10px] uppercase tracking-widest text-cyan">Correlation</p>
-                  <h4 className="font-syne font-semibold text-white text-sm mb-3 truncate">
-                    {aiResult.charts.scatter.xLabel} × {aiResult.charts.scatter.yLabel}
-                  </h4>
+                <ChartFrame
+                  id="chart-scatter"
+                  name={`${aiResult.charts.scatter.xLabel} × ${aiResult.charts.scatter.yLabel}`}
+                  category="Correlation"
+                  subtitle="Pola hubungan dua variabel numerik"
+                  source={aiResult.fileName}
+                >
                   <ScatterChart
                     height={240}
                     series={[{ label: "Data points", data: aiResult.charts.scatter.points }]}
                   />
-                </Card>
+                </ChartFrame>
               ) : (
-                <Card>
-                  <p className="text-[10px] uppercase tracking-widest text-cyan">Correlation</p>
-                  <h4 className="font-syne font-semibold text-white text-sm mb-3">Price × Conversion</h4>
+                <ChartFrame
+                  id="chart-price-conversion"
+                  name="Price × Conversion"
+                  category="Correlation"
+                  subtitle="Sensitivitas harga terhadap konversi"
+                  source="Demo dataset"
+                >
                   <ScatterChart
                     height={240}
                     series={[
@@ -543,28 +552,35 @@ export default function Dashboard() {
                       { label: "Produk B", data: [{ x: 60, y: 3.6 }, { x: 90, y: 3.2 }, { x: 110, y: 2.9 }, { x: 140, y: 2.5 }, { x: 170, y: 2.1 }] },
                     ]}
                   />
-                </Card>
+                </ChartFrame>
               )}
 
               {/* Stacked or fallback to radar */}
               {mode === "ai" && aiResult?.charts?.stacked ? (
-                <Card className="md:col-span-2">
-                  <p className="text-[10px] uppercase tracking-widest text-cyan">Stacked</p>
-                  <h4 className="font-syne font-semibold text-white text-sm mb-3">
-                    {aiResult.charts.stacked.series.map((s) => s.label).join(" + ")} per {aiResult.analysis.primaryCategoryCol}
-                  </h4>
+                <ChartFrame
+                  id="chart-stacked"
+                  name={`${aiResult.charts.stacked.series.map((s) => s.label).join(" + ")} per ${aiResult.analysis.primaryCategoryCol}`}
+                  category="Stacked Composition"
+                  subtitle="Komposisi metrik per kategori"
+                  source={aiResult.fileName}
+                  className="md:col-span-2"
+                >
                   <BarChart
                     stacked
                     height={260}
                     labels={aiResult.charts.stacked.labels}
                     series={aiResult.charts.stacked.series}
                   />
-                </Card>
+                </ChartFrame>
               ) : (
                 <>
-                  <Card>
-                    <p className="text-[10px] uppercase tracking-widest text-cyan">Multi-metric</p>
-                    <h4 className="font-syne font-semibold text-white text-sm mb-3">Performance Radar</h4>
+                  <ChartFrame
+                    id="chart-performance-radar"
+                    name="Performance Radar"
+                    category="Multi-metric"
+                    subtitle="Perbandingan brand di 6 dimensi"
+                    source="Demo dataset"
+                  >
                     <RadarChart
                       height={240}
                       labels={["Speed", "Quality", "Price", "Support", "Reach", "UX"]}
@@ -573,55 +589,64 @@ export default function Dashboard() {
                         { label: "Brand B", data: [6, 7, 9, 6, 7, 6] },
                       ]}
                     />
-                  </Card>
-                  <Card>
-                    <div className="flex items-center justify-between mb-3">
-                      <div>
-                        <p className="text-[10px] uppercase tracking-widest text-cyan">Mixed</p>
-                        <h4 className="font-syne font-semibold text-white text-sm">Forecast vs Actual</h4>
-                      </div>
-                      <Sparkles className="w-3.5 h-3.5 text-cyan" />
-                    </div>
+                  </ChartFrame>
+                  <ChartFrame
+                    id="chart-forecast-vs-actual"
+                    name="Forecast vs Actual"
+                    category="Mixed · Forecast"
+                    subtitle="Aktual (bar) vs proyeksi (line)"
+                    source="Demo dataset"
+                  >
                     <MixedChart
                       height={220}
                       labels={monthsRange}
                       bars={[{ label: "Aktual", data: demoSales, color: "#00D4FF" }]}
                       lines={[{ label: "Forecast", data: demoTarget, color: "#7B5EA7" }]}
                     />
-                  </Card>
+                  </ChartFrame>
                 </>
               )}
 
-              {/* Distribution histogram for first numeric col — only AI */}
+              {/* Detail tren kolom numerik pertama — hanya AI */}
               {mode === "ai" && aiResult && aiResult.charts.primary.series.length > 0 && (
-                <Card>
-                  <p className="text-[10px] uppercase tracking-widest text-cyan">Trend Detail</p>
-                  <h4 className="font-syne font-semibold text-white text-sm mb-3 truncate">
-                    {aiResult.charts.primary.series[0].label}
-                  </h4>
+                <ChartFrame
+                  id="chart-trend-detail"
+                  name={`Tren ${aiResult.charts.primary.series[0].label}`}
+                  category="Trend Detail"
+                  subtitle="Detail seri utama dalam line area"
+                  source={aiResult.fileName}
+                >
                   <LineAreaChart
                     height={240}
                     labels={aiResult.charts.primary.labels}
                     series={[aiResult.charts.primary.series[0]]}
                   />
-                </Card>
+                </ChartFrame>
               )}
 
               {/* Demo-mode-only extras */}
               {mode === "demo" && (
                 <>
-                  <Card>
-                    <p className="text-[10px] uppercase tracking-widest text-cyan">Polar</p>
-                    <h4 className="font-syne font-semibold text-white text-sm mb-3">Region Share</h4>
+                  <ChartFrame
+                    id="chart-region-share"
+                    name="Region Share"
+                    category="Polar Area"
+                    subtitle="Proporsi penjualan per kota"
+                    source="Demo dataset"
+                  >
                     <PolarChart
                       height={240}
                       labels={["Jakarta", "Bandung", "Surabaya", "Medan", "Bali"]}
                       data={[42, 18, 22, 10, 8]}
                     />
-                  </Card>
-                  <Card>
-                    <p className="text-[10px] uppercase tracking-widest text-cyan">Segments</p>
-                    <h4 className="font-syne font-semibold text-white text-sm mb-3">Customer Cluster</h4>
+                  </ChartFrame>
+                  <ChartFrame
+                    id="chart-customer-cluster"
+                    name="Customer Cluster"
+                    category="Segments · Bubble"
+                    subtitle="Klaster pelanggan berdasarkan value"
+                    source="Demo dataset"
+                  >
                     <BubbleChart
                       height={240}
                       series={[
@@ -630,10 +655,15 @@ export default function Dashboard() {
                         { label: "Low", data: [{ x: 15, y: 25, r: 8 }, { x: 30, y: 20, r: 10 }, { x: 45, y: 30, r: 9 }, { x: 60, y: 22, r: 7 }] },
                       ]}
                     />
-                  </Card>
-                  <Card className="md:col-span-2">
-                    <p className="text-[10px] uppercase tracking-widest text-cyan">Stacked Bar</p>
-                    <h4 className="font-syne font-semibold text-white text-sm mb-3">Revenue by Segment</h4>
+                  </ChartFrame>
+                  <ChartFrame
+                    id="chart-revenue-by-segment"
+                    name="Revenue by Segment"
+                    category="Stacked Bar"
+                    subtitle="Breakdown revenue per tier customer"
+                    source="Demo dataset"
+                    className="md:col-span-2"
+                  >
                     <BarChart
                       height={240}
                       stacked
@@ -644,10 +674,14 @@ export default function Dashboard() {
                         { label: "Startup", data: demoSales.map((s) => Math.round(s * 0.2)), color: "#00FFB3" },
                       ]}
                     />
-                  </Card>
-                  <Card>
-                    <p className="text-[10px] uppercase tracking-widest text-cyan">Heatmap</p>
-                    <h4 className="font-syne font-semibold text-white text-sm mb-3">Activity by Day × Hour</h4>
+                  </ChartFrame>
+                  <ChartFrame
+                    id="chart-activity-heatmap"
+                    name="Activity by Day × Hour"
+                    category="Heatmap"
+                    subtitle="Kepadatan aktivitas per hari & jam"
+                    source="Demo dataset"
+                  >
                     <Heatmap
                       height={240}
                       rows={["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"]}
@@ -662,7 +696,7 @@ export default function Dashboard() {
                         [8, 10, 14, 18, 22, 26, 20],
                       ]}
                     />
-                  </Card>
+                  </ChartFrame>
                 </>
               )}
             </div>
