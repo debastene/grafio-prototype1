@@ -1,5 +1,6 @@
 "use client";
 import { ReactNode, useState } from "react";
+import { Maximize2, Sparkles } from "lucide-react";
 import Logo from "../Logo";
 import ChartDetailModal from "./ChartDetailModal";
 import type { ChartKind, ColumnRole } from "@/lib/charts/tutorials";
@@ -73,7 +74,9 @@ export default function ChartFrame({
       data-chart-name={name}
       data-chart-id={id}
       className={`group relative bg-bgSurface border border-borderColor rounded-xl overflow-hidden shadow-soft transition-all duration-300 ${
-        canDiveDeeper ? "hover:border-cyan/50 hover:shadow-glow hover:-translate-y-0.5" : ""
+        canDiveDeeper
+          ? "hover:border-cyan/60 hover:shadow-glow hover:-translate-y-1 hover:scale-[1.01]"
+          : ""
       } ${className}`}
     >
       {/* Top accent bar — subtle gradient strip, jadi screenshot kelihatan punya branding */}
@@ -128,17 +131,39 @@ export default function ChartFrame({
         <span className="font-mono flex-shrink-0">{stamp}</span>
       </div>
 
-      {/* DIVE DEEPER OVERLAY — hover-to-reveal button (poin 3 di-refine di commit berikutnya) */}
+      {/* DIVE DEEPER AFFORDANCE (poin #3) — dua lapis biar chart tidak ke-blok:
+          1. Kecil persistent icon di header (kanan atas) untuk touch / cepat
+          2. Floating pill di tengah saat hover, dengan tagline ramah
+          3. Whole-frame click jadi shortcut (cursor-zoom-in di desktop) */}
       {canDiveDeeper && (
-        <button
-          onClick={() => setModalOpen(true)}
-          aria-label={`Pelajari lebih dalam tentang ${name}`}
-          className="absolute inset-0 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-bgDeep/40 backdrop-blur-[1px] flex items-center justify-center cursor-zoom-in"
-        >
-          <span className="px-4 py-2 rounded-full bg-cyan text-bgDeep text-xs font-syne font-bold shadow-glow flex items-center gap-1.5">
-            Dive Deeper →
-          </span>
-        </button>
+        <>
+          {/* Persistent corner button — selalu visible (untuk mobile/touch) */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setModalOpen(true);
+            }}
+            aria-label={`Pelajari lebih dalam tentang ${name}`}
+            title="Pelajari lebih dalam"
+            className="absolute top-3 right-3 z-20 w-7 h-7 rounded-md bg-bgElevated/80 border border-borderColor text-muted hover:bg-cyan/15 hover:border-cyan hover:text-cyan transition-all flex items-center justify-center backdrop-blur-sm"
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Hover invitation pill — clickable, tampil di bawah-tengah saat hover desktop.
+              Tidak nutupin chart, hanya melayang di atas footer. Tetap bisa di-klik
+              karena posisinya di area branding footer (bukan chart canvas). */}
+          <button
+            onClick={() => setModalOpen(true)}
+            aria-label={`Pelajari lebih dalam tentang ${name}`}
+            className="hidden md:flex absolute bottom-12 left-1/2 -translate-x-1/2 z-20 opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200"
+          >
+            <span className="px-3.5 py-1.5 rounded-full bg-cyan text-bgDeep text-xs font-syne font-bold shadow-glow flex items-center gap-1.5 whitespace-nowrap hover:bg-cyanSoft transition-colors">
+              <Sparkles className="w-3 h-3" />
+              Eh, pelajari lebih dalam yuk →
+            </span>
+          </button>
+        </>
       )}
 
       {/* FULL-SCREEN DETAIL MODAL */}
