@@ -36,6 +36,7 @@ type Props = {
   inspection: Inspection;
   initialPrompt: string;
   onConfirm: (config: ConfirmConfig) => Promise<void>;
+  /** "Ganti file" — reset upload & kembali ke layar pilih file. */
   onBack: () => void;
 };
 
@@ -474,18 +475,14 @@ function HealthStep({
             </p>
           </div>
 
-          {/* AI understanding */}
+          {/* AI understanding — TANPA loading state terpisah (loading ada di tombol Lanjut) */}
           <div className="md:col-span-2 space-y-3">
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-lg bg-cyan/15 border border-cyan/30 flex items-center justify-center">
-                {aiLoading ? (
-                  <Loader2 className="w-3.5 h-3.5 text-cyan animate-spin" />
-                ) : (
-                  <Brain className="w-3.5 h-3.5 text-cyan" />
-                )}
+                <Brain className="w-3.5 h-3.5 text-cyan" />
               </div>
               <p className="font-syne font-bold text-white text-sm">
-                {aiLoading ? "Grafio AI sedang membaca data…" : "Grafio AI sudah baca data"}
+                Pemahaman Grafio AI
               </p>
               {ai?._model && (
                 <span className="ml-auto text-[9px] uppercase tracking-widest text-mint bg-mint/10 px-2 py-0.5 rounded-full border border-mint/30">
@@ -494,23 +491,11 @@ function HealthStep({
               )}
             </div>
 
-            {aiLoading && (
-              <div className="space-y-2">
-                <div className="h-3 bg-bgSurface rounded animate-pulse w-3/4" />
-                <div className="h-3 bg-bgSurface rounded animate-pulse w-5/6" />
-              </div>
-            )}
-
-            {ai?.understanding && !aiLoading && (
-              <p className="text-sm text-white leading-relaxed">{ai.understanding}</p>
-            )}
-
-            {!ai?.understanding && !aiLoading && (
-              <p className="text-sm text-muted leading-relaxed">
-                Grafio mendeteksi {inspection.domain.name.toLowerCase()} —{" "}
-                {inspection.domain.description.toLowerCase()}
-              </p>
-            )}
+            <p className="text-sm leading-relaxed text-white">
+              {ai?.understanding
+                ? ai.understanding
+                : `Grafio mendeteksi ${inspection.domain.name.toLowerCase()} — ${inspection.domain.description.toLowerCase()}`}
+            </p>
 
             <div className="flex items-center gap-4 text-[10px] text-muted font-mono flex-wrap pt-2 border-t border-borderColor">
               <span className="text-xl">{inspection.domain.emoji}</span>
@@ -626,7 +611,7 @@ function HealthStep({
         )}
       </div>
 
-      {/* Raw data preview */}
+      {/* Raw data preview — semua kolom, scrollable horizontal, 10 baris pertama */}
       <div className="glass rounded-2xl p-5">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
@@ -634,28 +619,39 @@ function HealthStep({
             <p className="font-syne font-bold text-white text-sm">Preview Data Mentah</p>
           </div>
           <span className="text-[10px] text-muted">
-            {inspection.rowCount} baris × {inspection.headers.length} kolom
+            {inspection.preview.rows.length} dari {inspection.rowCount.toLocaleString("id")} baris × {inspection.headers.length} kolom
           </span>
         </div>
         <div className="overflow-x-auto rounded-md border border-borderColor">
-          <table className="w-full text-xs">
-            <thead>
+          <table className="text-xs" style={{ minWidth: "max-content" }}>
+            <thead className="sticky top-0">
               <tr className="bg-bgSurface text-left border-b border-borderColor">
-                {inspection.preview.headers.slice(0, 8).map((h) => (
-                  <th key={h} className="py-2 px-3 text-muted font-mono uppercase tracking-wider truncate">
+                <th className="py-2 px-3 text-muted font-mono text-[10px] uppercase tracking-wider sticky left-0 bg-bgSurface z-10 border-r border-borderColor">
+                  #
+                </th>
+                {inspection.preview.headers.map((h) => (
+                  <th
+                    key={h}
+                    className="py-2 px-3 text-muted font-mono uppercase tracking-wider whitespace-nowrap"
+                    title={h}
+                  >
                     {h}
                   </th>
                 ))}
-                {inspection.preview.headers.length > 8 && (
-                  <th className="py-2 px-3 text-muted">…</th>
-                )}
               </tr>
             </thead>
             <tbody>
               {inspection.preview.rows.map((row, i) => (
-                <tr key={i} className="border-b border-borderColor/40 last:border-0">
-                  {row.slice(0, 8).map((cell, j) => (
-                    <td key={j} className="py-2 px-3 text-white font-mono truncate max-w-[140px]">
+                <tr key={i} className="border-b border-borderColor/40 last:border-0 hover:bg-bgElevated/40">
+                  <td className="py-2 px-3 text-muted font-mono text-[10px] sticky left-0 bg-bgDeep z-10 border-r border-borderColor">
+                    {i + 1}
+                  </td>
+                  {row.map((cell, j) => (
+                    <td
+                      key={j}
+                      className="py-2 px-3 text-white font-mono whitespace-nowrap max-w-[280px] truncate"
+                      title={cell === null || cell === undefined || cell === "" ? "kosong" : String(cell)}
+                    >
                       {cell === null || cell === undefined || cell === "" ? (
                         <span className="text-warning">— kosong</span>
                       ) : (
@@ -663,20 +659,25 @@ function HealthStep({
                       )}
                     </td>
                   ))}
-                  {row.length > 8 && <td className="py-2 px-3 text-muted">…</td>}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        <p className="text-[10px] text-muted mt-2">Scroll ke kanan untuk lihat semua kolom →</p>
       </div>
 
       <div className="flex justify-end pt-2">
         <button
           onClick={onNext}
-          className="px-5 py-2.5 rounded-md bg-cyan text-bgDeep font-semibold hover:bg-cyanSoft transition-all text-sm shadow-glow flex items-center gap-2 font-syne"
+          disabled={aiLoading}
+          className="px-5 py-2.5 rounded-md bg-cyan text-bgDeep font-semibold hover:bg-cyanSoft transition-all text-sm shadow-glow flex items-center gap-2 font-syne disabled:opacity-70 disabled:cursor-progress"
         >
-          {issues.length > 0 ? (
+          {aiLoading ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" /> Grafio AI sedang membaca data…
+            </>
+          ) : issues.length > 0 ? (
             <>
               Lanjut ke Auto Cleaning <ChevronRight className="w-4 h-4" />
             </>
@@ -1039,7 +1040,7 @@ function ContextStep({
         </div>
       </div>
 
-      {/* Cleaned data preview */}
+      {/* Cleaned data preview — semua kolom, scrollable horizontal */}
       <div className="glass rounded-2xl p-5">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
@@ -1048,27 +1049,40 @@ function ContextStep({
               Preview Data Setelah Cleaning
             </p>
           </div>
-          <span className="text-[10px] text-muted">5 baris pertama</span>
+          <span className="text-[10px] text-muted">
+            {cleanedPreview.rows.length} baris × {cleanedPreview.headers.length} kolom
+          </span>
         </div>
         <div className="overflow-x-auto rounded-md border border-mint/20">
-          <table className="w-full text-xs">
-            <thead>
+          <table className="text-xs" style={{ minWidth: "max-content" }}>
+            <thead className="sticky top-0">
               <tr className="bg-mint/5 text-left border-b border-mint/20">
-                {cleanedPreview.headers.slice(0, 8).map((h) => (
-                  <th key={h} className="py-2 px-3 text-mint font-mono uppercase tracking-wider truncate">
+                <th className="py-2 px-3 text-mint font-mono text-[10px] uppercase tracking-wider sticky left-0 bg-bgDeep z-10 border-r border-mint/20">
+                  #
+                </th>
+                {cleanedPreview.headers.map((h) => (
+                  <th
+                    key={h}
+                    className="py-2 px-3 text-mint font-mono uppercase tracking-wider whitespace-nowrap"
+                    title={h}
+                  >
                     {h}
                   </th>
                 ))}
-                {cleanedPreview.headers.length > 8 && (
-                  <th className="py-2 px-3 text-muted">…</th>
-                )}
               </tr>
             </thead>
             <tbody>
               {cleanedPreview.rows.map((row, i) => (
-                <tr key={i} className="border-b border-borderColor/40 last:border-0">
-                  {row.slice(0, 8).map((cell, j) => (
-                    <td key={j} className="py-2 px-3 text-white font-mono truncate max-w-[140px]">
+                <tr key={i} className="border-b border-borderColor/40 last:border-0 hover:bg-bgElevated/40">
+                  <td className="py-2 px-3 text-muted font-mono text-[10px] sticky left-0 bg-bgDeep z-10 border-r border-mint/20">
+                    {i + 1}
+                  </td>
+                  {row.map((cell, j) => (
+                    <td
+                      key={j}
+                      className="py-2 px-3 text-white font-mono whitespace-nowrap max-w-[280px] truncate"
+                      title={cell === null || cell === undefined ? "kosong" : String(cell)}
+                    >
                       {cell === null || cell === undefined ? (
                         <span className="text-muted">—</span>
                       ) : (
@@ -1076,14 +1090,14 @@ function ContextStep({
                       )}
                     </td>
                   ))}
-                  {row.length > 8 && <td className="py-2 px-3 text-muted">…</td>}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        <p className="text-[10px] text-muted mt-2">Scroll ke kanan untuk lihat semua kolom →</p>
         {cleanedPreview.removedColumns.length > 0 && (
-          <p className="text-[11px] text-muted mt-2">
+          <p className="text-[11px] text-muted mt-1">
             <span className="text-warning">Kolom dibuang:</span>{" "}
             {cleanedPreview.removedColumns.join(", ")}
           </p>

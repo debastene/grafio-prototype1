@@ -308,7 +308,7 @@ export function shapeCharts(
     if (pr?.numericVector) histogram = buildHistogram(col, pr.numericVector, 12);
   }
 
-  const previewRows = rows.slice(0, 5).map((r) =>
+  const previewRows = rows.slice(0, 10).map((r) =>
     headers.map((h) => {
       const v = r[h];
       return v === null || v === undefined ? null : v;

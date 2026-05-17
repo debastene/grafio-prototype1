@@ -7,7 +7,6 @@ import InsightPanel from "@/components/ui/InsightPanel";
 import AiAssistant from "@/components/ui/AiAssistant";
 import AnalysisLauncher, { AiResult } from "@/components/ui/AnalysisLauncher";
 import Card from "@/components/ui/Card";
-import ExplainButton from "@/components/ui/ExplainButton";
 import Button from "@/components/ui/Button";
 import KpiCard from "@/components/ui/charts/KpiCard";
 import BarChart from "@/components/ui/charts/BarChart";
@@ -21,9 +20,9 @@ import Heatmap from "@/components/ui/charts/Heatmap";
 import ChartSwitcher from "@/components/ui/charts/ChartSwitcher";
 import LineAreaChart from "@/components/ui/charts/LineAreaChart";
 import {
-  Download, Share2, RefreshCw, Filter, Calendar, Sparkles,
+  Share2, RefreshCw, Calendar, Sparkles,
   FileText, Copy, Check, Cpu, Database, AlertTriangle, Loader2,
-  Lightbulb, MessageSquare, Save, FolderOpen,
+  Lightbulb, MessageSquare, Save, FolderOpen, X as XIcon,
 } from "lucide-react";
 import { saveProject } from "@/lib/db/projects";
 import { SUPABASE_CONFIGURED } from "@/lib/db/supabase";
@@ -45,6 +44,15 @@ export default function Dashboard() {
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
   const [savedProjectId, setSavedProjectId] = useState<string | null>(null);
+  /** True setelah AnalysisLauncher berhasil inspect file — UploadZone disembunyikan. */
+  const [inspectionStarted, setInspectionStarted] = useState(false);
+  const [showFullPreview, setShowFullPreview] = useState(false);
+  const [toast, setToast] = useState<{ type: "info" | "success" | "error"; message: string } | null>(null);
+
+  const showToast = (type: "info" | "success" | "error", message: string) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), 3500);
+  };
 
   const onSaveProject = async () => {
     if (!aiResult) return;
@@ -83,21 +91,20 @@ export default function Dashboard() {
   const demoTarget = [40000, 45000, 50000, 50000, 55000, 60000, 65000, 70000].slice(0, monthsRange.length);
   const demoProfit = [12300, 15800, 9200, 19400, 17900, 22300, 24500, 27800].slice(0, monthsRange.length);
 
-  const downloadAlert = (what: string) =>
-    alert(`✅ ${what} berhasil disiapkan!\n(Demo prototype — file aktual akan tersedia di versi production.)`);
-
   const generatePdf = async () => {
     if (!aiResult) {
-      alert("Tidak ada hasil analisis untuk di-export. Upload data dan jalankan analisis dulu.");
+      showToast("error", "Tidak ada hasil analisis. Upload data & jalankan analisis dulu.");
       return;
     }
     setPdfLoading(true);
     try {
       const { downloadReport } = await import("@/lib/report/pdf");
       await downloadReport(aiResult);
+      showToast("success", "PDF Report berhasil di-generate");
     } catch (err) {
       console.error(err);
-      alert("Gagal generate PDF: " + (err instanceof Error ? err.message : String(err)));
+      const msg = err instanceof Error ? err.message : String(err);
+      showToast("error", `Gagal generate PDF: ${msg}`);
     } finally {
       setPdfLoading(false);
     }
@@ -122,6 +129,14 @@ export default function Dashboard() {
     setMode("upload");
     setFiles([]);
     setAiResult(null);
+    setInspectionStarted(false);
+    setShowFullPreview(false);
+  };
+
+  /** Callback dari AnalysisLauncher saat user pencet "Ganti file" di wizard. */
+  const handleResetFile = () => {
+    setFiles([]);
+    setInspectionStarted(false);
   };
 
   const showResults = mode === "demo" || mode === "ai";
@@ -209,17 +224,16 @@ export default function Dashboard() {
               <Button variant="ghost" size="sm" onClick={reset}>
                 <RefreshCw className="w-3.5 h-3.5" /> Reset
               </Button>
-              <Button variant="ghost" size="sm" onClick={() => alert("Filter panel akan tersedia segera")}>
-                <Filter className="w-3.5 h-3.5" /> Filter
-              </Button>
             </div>
           )}
         </div>
 
-        {/* UPLOAD + LAUNCHER */}
+        {/* UPLOAD + LAUNCHER — UploadZone hilang ketika inspect sudah jalan */}
         {mode === "upload" && (
           <div className="max-w-3xl mx-auto space-y-6">
-            <UploadZone onDemo={() => setMode("demo")} onFiles={setFiles} />
+            {!inspectionStarted && (
+              <UploadZone onDemo={() => setMode("demo")} onFiles={setFiles} />
+            )}
             {files.length > 0 && (
               <AnalysisLauncher
                 files={files}
@@ -227,6 +241,8 @@ export default function Dashboard() {
                   setAiResult(r);
                   setMode("ai");
                 }}
+                onInspectStart={() => setInspectionStarted(true)}
+                onResetFile={handleResetFile}
               />
             )}
           </div>
@@ -388,19 +404,6 @@ export default function Dashboard() {
             <div className="grid lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2">
                 <Card>
-                  {mode === "ai" && aiResult && (
-                    <ExplainButton
-                      chartType="Recommended Chart"
-                      chartTitle={primaryChart.title}
-                      chartDescription="Chart utama yang direkomendasikan engine berdasarkan domain & struktur data"
-                      labels={primaryChart.labels}
-                      datasets={primaryChart.series.map((s) => ({
-                        label: s.label,
-                        data: s.data,
-                      }))}
-                      domain={aiResult.domain.name}
-                    />
-                  )}
                   <div className="flex items-center justify-between mb-2">
                     <div>
                       <p className="text-xs uppercase tracking-widest text-cyan">
@@ -493,18 +496,6 @@ export default function Dashboard() {
               {/* Distribution / Doughnut */}
               {mode === "ai" && aiResult?.charts?.distribution ? (
                 <Card>
-                  <ExplainButton
-                    chartType="Doughnut (Distribution)"
-                    chartTitle={`Distribusi ${aiResult.analysis.primaryCategoryCol ?? "kategori"}`}
-                    labels={aiResult.charts.distribution.labels}
-                    datasets={[
-                      {
-                        label: aiResult.analysis.primaryCategoryCol ?? "Distribusi",
-                        data: aiResult.charts.distribution.data,
-                      },
-                    ]}
-                    domain={aiResult.domain.name}
-                  />
                   <p className="text-[10px] uppercase tracking-widest text-cyan">Distribution</p>
                   <h4 className="font-syne font-semibold text-white text-sm mb-3">
                     {aiResult.analysis.primaryCategoryCol ?? "Distribusi"}
@@ -707,43 +698,75 @@ export default function Dashboard() {
               </Card>
             )}
 
-            {/* DATA PREVIEW */}
+            {/* DATA PREVIEW — scrollable horizontal, semua kolom (match wizard style) */}
             <Card>
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
                 <div>
                   <p className="text-[10px] uppercase tracking-widest text-cyan">Raw Data</p>
                   <h4 className="font-syne font-semibold text-white text-sm">
-                    Preview (5 baris pertama)
+                    Preview ({showFullPreview && mode === "ai" && aiResult
+                      ? Math.min(aiResult.tableSnapshot.rows.length, 100)
+                      : mode === "ai" && aiResult
+                        ? aiResult.charts.preview.rows.length
+                        : monthsRange.length} baris)
                     {mode === "ai" && aiResult && (
                       <span className="text-muted text-xs ml-2 font-normal">
-                        dari {aiResult.rowCount} total baris
+                        dari {aiResult.rowCount.toLocaleString("id")} total
                       </span>
                     )}
                   </h4>
                 </div>
-                <button
-                  onClick={() => alert("Membuka full data table…")}
-                  className="text-xs text-cyan hover:underline flex items-center gap-1"
-                >
-                  Lihat semua <FileText className="w-3 h-3" />
-                </button>
+                {mode === "ai" && aiResult && aiResult.tableSnapshot.rows.length > 10 && (
+                  <button
+                    onClick={() => setShowFullPreview(!showFullPreview)}
+                    className="text-xs text-cyan hover:underline flex items-center gap-1"
+                  >
+                    {showFullPreview ? "Tampilkan 10 baris saja" : `Lihat sampai 100 baris`}{" "}
+                    <FileText className="w-3 h-3" />
+                  </button>
+                )}
               </div>
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto rounded-md border border-borderColor">
                 {mode === "ai" && aiResult ? (
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-xs uppercase tracking-wider text-muted border-b border-borderColor">
-                        {aiResult.charts.preview.headers.slice(0, 8).map((h) => (
-                          <th key={h} className="py-3 pr-4 font-medium">{h}</th>
+                  <table className="text-xs" style={{ minWidth: "max-content" }}>
+                    <thead className="sticky top-0">
+                      <tr className="bg-bgSurface text-left border-b border-borderColor">
+                        <th className="py-2 px-3 text-muted font-mono text-[10px] uppercase tracking-wider sticky left-0 bg-bgSurface z-10 border-r border-borderColor">
+                          #
+                        </th>
+                        {aiResult.charts.preview.headers.map((h) => (
+                          <th
+                            key={h}
+                            className="py-2 px-3 text-muted font-mono uppercase tracking-wider whitespace-nowrap"
+                            title={h}
+                          >
+                            {h}
+                          </th>
                         ))}
                       </tr>
                     </thead>
-                    <tbody className="text-white">
-                      {aiResult.charts.preview.rows.map((row, i) => (
-                        <tr key={i} className="border-b border-borderColor/50 hover:bg-bgElevated/50 transition-colors">
-                          {row.slice(0, 8).map((cell, j) => (
-                            <td key={j} className="py-3 pr-4 font-mono text-xs truncate max-w-[180px]">
-                              {cell === null ? <span className="text-muted">—</span> : String(cell)}
+                    <tbody>
+                      {(showFullPreview
+                        ? aiResult.tableSnapshot.rows
+                            .slice(0, 100)
+                            .map((r) => aiResult.charts.preview.headers.map((h) => r[h] ?? null))
+                        : aiResult.charts.preview.rows
+                      ).map((row, i) => (
+                        <tr key={i} className="border-b border-borderColor/40 last:border-0 hover:bg-bgElevated/40">
+                          <td className="py-2 px-3 text-muted font-mono text-[10px] sticky left-0 bg-bgDeep z-10 border-r border-borderColor">
+                            {i + 1}
+                          </td>
+                          {row.map((cell, j) => (
+                            <td
+                              key={j}
+                              className="py-2 px-3 text-white font-mono whitespace-nowrap max-w-[280px] truncate"
+                              title={cell === null || cell === undefined || cell === "" ? "kosong" : String(cell)}
+                            >
+                              {cell === null || cell === undefined || cell === "" ? (
+                                <span className="text-muted">—</span>
+                              ) : (
+                                String(cell)
+                              )}
                             </td>
                           ))}
                         </tr>
@@ -753,12 +776,12 @@ export default function Dashboard() {
                 ) : (
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="text-left text-xs uppercase tracking-wider text-muted border-b border-borderColor">
-                        <th className="py-3 pr-4">Bulan</th>
-                        <th className="py-3 pr-4 text-right">Penjualan</th>
-                        <th className="py-3 pr-4 text-right">Target</th>
-                        <th className="py-3 pr-4 text-right">Profit</th>
-                        <th className="py-3 pr-4 text-right">% Target</th>
+                      <tr className="text-left text-xs uppercase tracking-wider text-muted border-b border-borderColor bg-bgSurface">
+                        <th className="py-3 px-3">Bulan</th>
+                        <th className="py-3 px-3 text-right">Penjualan</th>
+                        <th className="py-3 px-3 text-right">Target</th>
+                        <th className="py-3 px-3 text-right">Profit</th>
+                        <th className="py-3 px-3 text-right">% Target</th>
                       </tr>
                     </thead>
                     <tbody className="text-white">
@@ -766,12 +789,12 @@ export default function Dashboard() {
                         const pct = (demoSales[i] / demoTarget[i]) * 100;
                         const positive = pct >= 100;
                         return (
-                          <tr key={m} className="border-b border-borderColor/50 hover:bg-bgElevated/50 transition-colors">
-                            <td className="py-3 pr-4">{m}</td>
-                            <td className="py-3 pr-4 text-right font-mono">{demoSales[i].toLocaleString("id")}</td>
-                            <td className="py-3 pr-4 text-right font-mono text-muted">{demoTarget[i].toLocaleString("id")}</td>
-                            <td className="py-3 pr-4 text-right font-mono">{demoProfit[i].toLocaleString("id")}</td>
-                            <td className={`py-3 pr-4 text-right font-mono ${positive ? "text-mint" : "text-danger"}`}>
+                          <tr key={m} className="border-b border-borderColor/40 last:border-0 hover:bg-bgElevated/40">
+                            <td className="py-3 px-3">{m}</td>
+                            <td className="py-3 px-3 text-right font-mono">{demoSales[i].toLocaleString("id")}</td>
+                            <td className="py-3 px-3 text-right font-mono text-muted">{demoTarget[i].toLocaleString("id")}</td>
+                            <td className="py-3 px-3 text-right font-mono">{demoProfit[i].toLocaleString("id")}</td>
+                            <td className={`py-3 px-3 text-right font-mono ${positive ? "text-mint" : "text-danger"}`}>
                               {pct.toFixed(1)}%
                             </td>
                           </tr>
@@ -781,6 +804,11 @@ export default function Dashboard() {
                   </table>
                 )}
               </div>
+              {mode === "ai" && aiResult && (
+                <p className="text-[10px] text-muted mt-2">
+                  Scroll ke kanan untuk lihat semua {aiResult.charts.preview.headers.length} kolom →
+                </p>
+              )}
             </Card>
 
             {/* ACTION BAR */}
@@ -862,6 +890,36 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      {/* Toast notifications (replaces native alert()) */}
+      {toast && (
+        <div
+          className={`fixed bottom-6 right-6 z-50 max-w-sm px-4 py-3 rounded-lg shadow-glow border flex items-start gap-2.5 backdrop-blur-xl animate-fadeUp ${
+            toast.type === "success"
+              ? "bg-mint/15 border-mint/40 text-mint"
+              : toast.type === "error"
+                ? "bg-danger/15 border-danger/40 text-danger"
+                : "bg-cyan/15 border-cyan/40 text-cyan"
+          }`}
+        >
+          {toast.type === "success" ? (
+            <Check className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          ) : toast.type === "error" ? (
+            <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          ) : (
+            <Sparkles className="w-4 h-4 flex-shrink-0 mt-0.5" />
+          )}
+          <p className="text-sm text-white leading-relaxed flex-1">{toast.message}</p>
+          <button
+            onClick={() => setToast(null)}
+            className="text-white/70 hover:text-white transition-colors"
+            aria-label="Tutup"
+          >
+            <XIcon className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       <Footer />
     </main>
   );

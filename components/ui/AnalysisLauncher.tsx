@@ -19,9 +19,13 @@ type Stage = "prompt" | "clarify" | "analyzing";
 type Props = {
   files: File[];
   onComplete: (result: AiResult) => void;
+  /** Fired when inspection starts — dashboard pakai untuk hide UploadZone. */
+  onInspectStart?: () => void;
+  /** Fired when user klik "Ganti file" — dashboard pakai untuk reset state file. */
+  onResetFile?: () => void;
 };
 
-export default function AnalysisLauncher({ files, onComplete }: Props) {
+export default function AnalysisLauncher({ files, onComplete, onInspectStart, onResetFile }: Props) {
   const [stage, setStage] = useState<Stage>("prompt");
   const [prompt, setPrompt] = useState("");
   const [inspection, setInspection] = useState<Inspection | null>(null);
@@ -40,11 +44,21 @@ export default function AnalysisLauncher({ files, onComplete }: Props) {
       const insp = await quickInspect(files[0]);
       setInspection(insp);
       setStage("clarify");
+      // Notify dashboard hanya setelah inspect SUKSES — kalau gagal,
+      // UploadZone tetap visible biar user bisa ganti file dari atas.
+      onInspectStart?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Gagal membaca file");
     } finally {
       setInspecting(false);
     }
+  };
+
+  const resetToUpload = () => {
+    setInspection(null);
+    setStage("prompt");
+    setError(null);
+    onResetFile?.();
   };
 
   const runFullAnalysis = async (config: ConfirmConfig) => {
@@ -157,7 +171,7 @@ export default function AnalysisLauncher({ files, onComplete }: Props) {
         inspection={inspection}
         initialPrompt={prompt}
         onConfirm={runFullAnalysis}
-        onBack={() => setStage("prompt")}
+        onBack={resetToUpload}
       />
     );
   }

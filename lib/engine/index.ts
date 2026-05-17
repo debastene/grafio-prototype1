@@ -96,8 +96,8 @@ export async function quickInspect(
   const issues = detectIssues(profile, formattedRows);
   const healthScore = computeHealthScore(profile, issues);
 
-  // Preview (first 5 rows of un-cleaned data)
-  const previewRows = formattedRows.slice(0, 5).map((r) =>
+  // Preview (first 10 rows of un-cleaned data, all columns)
+  const previewRows = formattedRows.slice(0, 10).map((r) =>
     table.headers.map((h) => {
       const v = r[h];
       return v === null || v === undefined ? null : v;
