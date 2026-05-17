@@ -172,6 +172,14 @@ export type EngineResult = {
     rows: ParsedRow[];
   };
 
+  /**
+   * AI-generated 1-3 kalimat insight per chart (poin #5 evaluasi 16 Mei).
+   * Key = chart id (sesuai ChartFrame.id di dashboard), value = insight string.
+   * Diisi async oleh AnalysisLauncher setelah engine selesai. Bisa kosong
+   * kalau AI offline.
+   */
+  chartInsights?: Record<string, string>;
+
   _meta?: {
     model?: string;
     input_tokens?: number;

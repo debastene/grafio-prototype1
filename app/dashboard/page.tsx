@@ -414,6 +414,7 @@ export default function Dashboard() {
                       : undefined
                   }
                   source={mode === "ai" && aiResult ? aiResult.fileName : "Demo dataset"}
+                  insight={mode === "ai" ? aiResult?.chartInsights?.["chart-primary"] : undefined}
                 >
                   <ChartSwitcher labels={primaryChart.labels} series={primaryChart.series} />
                 </ChartFrame>
@@ -440,6 +441,7 @@ export default function Dashboard() {
                 category="Correlation Matrix"
                 subtitle={`Pearson r untuk ${aiResult.analysis.correlationMatrix.columns.length} kolom numerik utama · biru = positif, merah = negatif`}
                 source={aiResult.fileName}
+                insight={aiResult.chartInsights?.["chart-correlation-matrix"]}
               >
                 <CorrHeatmap matrix={aiResult.analysis.correlationMatrix} />
               </ChartFrame>
@@ -498,6 +500,7 @@ export default function Dashboard() {
                   category="Distribution"
                   subtitle={`${aiResult.charts.distribution.labels.length} kategori unik`}
                   source={aiResult.fileName}
+                  insight={aiResult.chartInsights?.["chart-distribution"]}
                 >
                   <DoughnutChart
                     height={240}
@@ -531,6 +534,7 @@ export default function Dashboard() {
                   category="Correlation"
                   subtitle="Pola hubungan dua variabel numerik"
                   source={aiResult.fileName}
+                  insight={aiResult.chartInsights?.["chart-scatter"]}
                 >
                   <ScatterChart
                     height={240}
@@ -563,6 +567,7 @@ export default function Dashboard() {
                   category="Stacked Composition"
                   subtitle="Komposisi metrik per kategori"
                   source={aiResult.fileName}
+                  insight={aiResult.chartInsights?.["chart-stacked"]}
                   className="md:col-span-2"
                 >
                   <BarChart
@@ -615,6 +620,7 @@ export default function Dashboard() {
                   category="Trend Detail"
                   subtitle="Detail seri utama dalam line area"
                   source={aiResult.fileName}
+                  insight={aiResult.chartInsights?.["chart-trend-detail"]}
                 >
                   <LineAreaChart
                     height={240}

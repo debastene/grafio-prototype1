@@ -156,6 +156,124 @@ export default function AnalysisLauncher({ files, onComplete, onInspectStart, on
         clearTimeout(narrateStop);
       }
 
+      // === PER-CHART AI INSIGHT (poin #5 — batch call) ===
+      // Generate 1-3 kalimat insight per chart yang akan ditampilkan di dashboard.
+      // Pakai chart-id yang SAMA dengan yang dipakai di app/dashboard/page.tsx
+      // (lihat <ChartFrame id="..." />) supaya bisa di-lookup di sana.
+      setProgress("AI sedang menulis insight per chart…");
+      const chartReqs: {
+        id: string;
+        name: string;
+        category?: string;
+        labels?: (string | number)[];
+        datasets?: { label: string; data: (number | { x: number; y: number; r?: number })[] }[];
+      }[] = [];
+
+      // Primary chart
+      if (result.charts.primary.series.length > 0) {
+        chartReqs.push({
+          id: "chart-primary",
+          name: result.analysis.primaryDateCol
+            ? `Tren Time-Series — ${result.charts.primary.series.map((s) => s.label).join(", ")}`
+            : result.analysis.primaryCategoryCol
+              ? `${result.charts.primary.series[0].label} per ${result.analysis.primaryCategoryCol}`
+              : "Data Series",
+          category: "Chart Utama",
+          labels: result.charts.primary.labels,
+          datasets: result.charts.primary.series.map((s) => ({ label: s.label, data: s.data })),
+        });
+      }
+      // Distribution
+      if (result.charts.distribution) {
+        chartReqs.push({
+          id: "chart-distribution",
+          name: `Distribusi ${result.analysis.primaryCategoryCol ?? "Kategori"}`,
+          category: "Distribution",
+          labels: result.charts.distribution.labels,
+          datasets: [
+            {
+              label: result.analysis.primaryCategoryCol ?? "Distribusi",
+              data: result.charts.distribution.data,
+            },
+          ],
+        });
+      }
+      // Scatter
+      if (result.charts.scatter) {
+        chartReqs.push({
+          id: "chart-scatter",
+          name: `${result.charts.scatter.xLabel} × ${result.charts.scatter.yLabel}`,
+          category: "Correlation",
+          datasets: [{ label: "Data points", data: result.charts.scatter.points }],
+        });
+      }
+      // Stacked
+      if (result.charts.stacked) {
+        chartReqs.push({
+          id: "chart-stacked",
+          name: `${result.charts.stacked.series.map((s) => s.label).join(" + ")} per ${result.analysis.primaryCategoryCol}`,
+          category: "Stacked Composition",
+          labels: result.charts.stacked.labels,
+          datasets: result.charts.stacked.series.map((s) => ({ label: s.label, data: s.data })),
+        });
+      }
+      // Trend detail (first series of primary)
+      if (result.charts.primary.series.length > 0) {
+        const s = result.charts.primary.series[0];
+        chartReqs.push({
+          id: "chart-trend-detail",
+          name: `Tren ${s.label}`,
+          category: "Trend Detail",
+          labels: result.charts.primary.labels,
+          datasets: [{ label: s.label, data: s.data }],
+        });
+      }
+      // Correlation matrix
+      if (result.analysis.correlationMatrix) {
+        const m = result.analysis.correlationMatrix;
+        chartReqs.push({
+          id: "chart-correlation-matrix",
+          name: "Matriks Korelasi Pearson",
+          category: "Correlation Matrix",
+          labels: m.columns,
+          datasets: m.matrix.slice(0, 6).map((row, i) => ({
+            label: m.columns[i] ?? `col${i}`,
+            data: row.slice(0, 6),
+          })),
+        });
+      }
+
+      if (chartReqs.length > 0) {
+        const insightAc = new AbortController();
+        const insightStop = setTimeout(() => insightAc.abort(), 25_000);
+        try {
+          const insightRes = await fetch("/api/explain", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            signal: insightAc.signal,
+            body: JSON.stringify({
+              mode: "chart-insights",
+              context: {
+                fileName: result.fileName,
+                domain: result.domain.name,
+                userContext: config.contextNote,
+                charts: chartReqs,
+              },
+            }),
+          });
+          if (insightRes.ok) {
+            const data = await insightRes.json();
+            if (data?.insights && typeof data.insights === "object") {
+              result.chartInsights = data.insights as Record<string, string>;
+            }
+          }
+        } catch {
+          /* swallow — chart insights are optional */
+        } finally {
+          clearTimeout(insightStop);
+        }
+      }
+
       onComplete(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Analisis gagal");

@@ -2,11 +2,12 @@
  * Unified AI enrichment endpoint. Single API surface, multiple modes
  * so we can iterate prompts without spinning up new routes.
  *
- *   mode=clarify   → after quickInspect, AI menjelaskan dataset + saran prompt + cleaning advice
- *   mode=narrate   → after engine analysis, AI menulis ulang summary/insights/kpis pakai angka engine
- *   mode=chart     → user klik "Jelaskan chart ini" → AI bercerita tentang 1 chart
- *   mode=followup  → setelah chat reply, generate 3 pertanyaan lanjutan kontekstual
- *   mode=rename    → AI sarankan nama kolom yang lebih friendly untuk file download
+ *   mode=clarify        → after quickInspect, AI menjelaskan dataset + saran prompt + cleaning advice
+ *   mode=narrate        → after engine analysis, AI menulis ulang summary/insights/kpis pakai angka engine
+ *   mode=chart          → user klik "Jelaskan chart ini" → AI bercerita tentang 1 chart
+ *   mode=followup       → setelah chat reply, generate 3 pertanyaan lanjutan kontekstual
+ *   mode=rename         → AI sarankan nama kolom yang lebih friendly untuk file download
+ *   mode=chart-insights → batch: AI generate 1-3 kalimat insight untuk N chart sekaligus
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -73,6 +74,27 @@ Tugas: dalam 3-4 kalimat Bahasa Indonesia natural & santai, jelaskan:
 Hindari jargon. Pakai bahasa pasar/sentimen ("lonjakan", "lesu", "panas", "momentum naik", dst).
 Jangan pakai bullet atau heading. Tulis sebagai paragraf padat. Maks 700 karakter.`;
 
+const SYS_CHART_INSIGHTS = `Kamu Grafio AI — analis data senior berbahasa Indonesia.
+Tugas: untuk SETIAP chart yang diberikan, tulis insight ringkas 1-3 KALIMAT dalam Bahasa Indonesia
+yang menjelaskan chart tersebut "mengartikan apa" dari sudut pandang user awam.
+
+Aturan WAJIB:
+- 1-3 kalimat per chart. Singkat, padat, kontekstual.
+- Sebut angka EKSAK dari data yang diberikan (jangan halusinasi).
+- Bahasa sehari-hari, BUKAN jargon statistik. Hindari "regresi", "p-value", "deviasi".
+- Pakai analogi/bahasa pasar bila perlu: "lonjakan", "lesu", "panas", "ramai", "sepi", "momentum".
+- Fokus ke "apa artinya buat user", bukan "ini chart apa".
+- Kalau data terlalu generic untuk diberi insight bermakna, output "Chart ini menunjukkan distribusi {nama} — pola dasar sesuai ekspektasi."
+
+Output JSON murni:
+{
+  "insights": {
+    "<chart-id>": "<insight 1-3 kalimat>",
+    "<chart-id>": "<insight 1-3 kalimat>"
+  }
+}
+Pastikan setiap chart-id yang diminta ADA di output. Tidak ada field tambahan.`;
+
 const SYS_RENAME = `Kamu Grafio AI — pakar penamaan kolom data. User akan download data hasil cleaning.
 Tugas: berdasarkan daftar nama kolom asli + sample 3 baris, sarankan nama kolom yang LEBIH FRIENDLY
 & mudah dipahami orang awam, tapi tetap informatif. Hanya rename yang BENAR-BENAR perlu (nama kurang jelas,
@@ -130,7 +152,7 @@ Aturan:
 // HANDLER
 // ============================================================
 
-type Mode = "clarify" | "narrate" | "chart" | "followup" | "report" | "rename";
+type Mode = "clarify" | "narrate" | "chart" | "followup" | "report" | "rename" | "chart-insights";
 
 export async function POST(req: NextRequest) {
   let body: Record<string, unknown>;
@@ -141,7 +163,7 @@ export async function POST(req: NextRequest) {
   }
 
   const mode = body.mode as Mode;
-  if (!["clarify", "narrate", "chart", "followup", "report", "rename"].includes(mode)) {
+  if (!["clarify", "narrate", "chart", "followup", "report", "rename", "chart-insights"].includes(mode)) {
     return NextResponse.json({ error: "mode tidak valid" }, { status: 400 });
   }
 
@@ -153,6 +175,7 @@ export async function POST(req: NextRequest) {
     else if (mode === "followup") result = await doFollowup(body);
     else if (mode === "report") result = await doReport(body);
     else if (mode === "rename") result = await doRename(body);
+    else if (mode === "chart-insights") result = await doChartInsights(body);
     return NextResponse.json(result);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unknown error";
@@ -437,6 +460,64 @@ Generate 3 pertanyaan lanjutan.`;
     responseFormat: "json_object",
   });
   return safeParseJSON<{ questions: string[] }>(text);
+}
+
+async function doChartInsights(body: Record<string, unknown>) {
+  const ctx = body.context as {
+    fileName: string;
+    domain?: string;
+    userContext?: string;
+    charts: {
+      id: string;
+      name: string;
+      category?: string;
+      labels?: (string | number)[];
+      datasets?: { label: string; data: (number | { x: number; y: number; r?: number })[] }[];
+    }[];
+  };
+
+  if (!Array.isArray(ctx.charts) || ctx.charts.length === 0) {
+    return { insights: {} };
+  }
+
+  // Compress each chart's data (max 12 datapoints) supaya token tidak meledak
+  const compressed = ctx.charts.slice(0, 10).map((c) => {
+    const datasets = (c.datasets ?? []).map((d) => {
+      const data = d.data.slice(0, 12);
+      const peek = data.map((v) =>
+        typeof v === "object" ? JSON.stringify(v) : typeof v === "number" ? Number(v.toFixed(2)) : v,
+      );
+      return { label: d.label, data: peek };
+    });
+    return {
+      id: c.id,
+      name: c.name,
+      category: c.category,
+      labels: c.labels?.slice(0, 12),
+      datasets,
+    };
+  });
+
+  const userMsg = `Domain: ${ctx.domain ?? "tidak diketahui"}
+File: ${ctx.fileName}
+${ctx.userContext ? `\n[Konteks user]: ${ctx.userContext}` : ""}
+
+Chart yang perlu di-insight (${compressed.length} chart):
+${JSON.stringify(compressed, null, 2)}
+
+Untuk setiap chart-id di atas, tulis insight 1-3 kalimat sesuai aturan.`;
+
+  const { text, model } = await callWithFallback(CHAINS.structured, {
+    messages: [
+      { role: "system", content: SYS_CHART_INSIGHTS },
+      { role: "user", content: userMsg },
+    ],
+    temperature: 0.45,
+    maxTokens: 1200,
+    timeoutMs: 18_000,
+    responseFormat: "json_object",
+  });
+  return { ...safeParseJSON<{ insights: Record<string, string> }>(text), _model: model };
 }
 
 async function doRename(body: Record<string, unknown>) {
