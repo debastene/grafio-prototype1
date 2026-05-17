@@ -17,6 +17,10 @@ export interface ProfileRow {
   nrp: string | null;
   institution: string | null;
   trial_ends_at: string | null; // ISO timestamp
+  /** Quiz reward credits (eval #7). Default 0. */
+  credits: number;
+  /** Bonus upload extras (eval #7 — future use). Default 0. */
+  extra_uploads: number;
   created_at: string;
   updated_at: string;
 }

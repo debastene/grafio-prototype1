@@ -1,13 +1,15 @@
 "use client";
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { Menu, X, Sparkles, LogOut, User as UserIcon, FolderOpen } from "lucide-react";
+import { Menu, X, Sparkles, LogOut, User as UserIcon, FolderOpen, Trophy, Coins } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import Logo from "./Logo";
 import { getSession, logout, planLabel, refreshSession, UserProfile, getRemainingTrialDays } from "@/lib/auth/storage";
+import { getBrowserSupabase } from "@/lib/db/supabase";
 
 const links = [
   { label: "Dashboard", href: "/dashboard" },
+  { label: "Quiz", href: "/quiz" },
   { label: "Features", href: "/features" },
   { label: "Pricing", href: "/pricing" },
   { label: "Contact", href: "/contact" },
@@ -17,6 +19,7 @@ export default function Nav() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [user, setUser] = useState<UserProfile | null>(null);
+  const [credits, setCredits] = useState<number | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
@@ -35,6 +38,24 @@ export default function Nav() {
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, [pathname]);
+
+  // Fetch credits balance setiap kali user / pathname berubah (auto-refresh
+  // setelah submit quiz misal user balik ke dashboard).
+  useEffect(() => {
+    if (!user) {
+      setCredits(null);
+      return;
+    }
+    const sb = getBrowserSupabase();
+    if (!sb) return;
+    sb.from("profiles")
+      .select("credits")
+      .eq("id", user.id)
+      .single()
+      .then(({ data }) => {
+        if (data && typeof data.credits === "number") setCredits(data.credits);
+      });
+  }, [user, pathname]);
 
   const onLogout = async () => {
     await logout();
@@ -83,7 +104,17 @@ export default function Nav() {
           <span className="w-px h-5 bg-borderColor mx-3" />
 
           {user ? (
-            <div className="relative">
+            <div className="relative flex items-center gap-2">
+              {credits !== null && credits > 0 && (
+                <Link
+                  href="/quiz"
+                  title={`${credits} credits dari quiz`}
+                  className="flex items-center gap-1 px-2 py-1 rounded-md border border-warning/30 bg-warning/10 hover:bg-warning/20 transition-colors"
+                >
+                  <Coins className="w-3 h-3 text-warning" />
+                  <span className="text-[11px] font-syne font-bold text-warning">{credits}</span>
+                </Link>
+              )}
               <button
                 onClick={() => setMenuOpen(!menuOpen)}
                 className="flex items-center gap-2 px-3 py-2 rounded-md border border-borderColor bg-bgSurface hover:border-cyan/40 transition-colors"
@@ -106,6 +137,11 @@ export default function Nav() {
                         Trial sisa: {trialDays} hari
                       </p>
                     )}
+                    {credits !== null && (
+                      <p className="text-[10px] text-warning mt-1 flex items-center gap-1">
+                        <Coins className="w-2.5 h-2.5" /> {credits} credits
+                      </p>
+                    )}
                   </div>
                   <Link
                     href="/dashboard"
@@ -120,6 +156,13 @@ export default function Nav() {
                     className="flex items-center gap-2 px-3 py-2 rounded text-sm text-muted hover:bg-bgElevated hover:text-white"
                   >
                     <FolderOpen className="w-3.5 h-3.5" /> Project History
+                  </Link>
+                  <Link
+                    href="/quiz"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-2 px-3 py-2 rounded text-sm text-muted hover:bg-bgElevated hover:text-white"
+                  >
+                    <Trophy className="w-3.5 h-3.5" /> Mini Quiz
                   </Link>
                   <button
                     onClick={onLogout}
