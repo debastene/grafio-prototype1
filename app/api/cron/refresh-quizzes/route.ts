@@ -15,7 +15,9 @@ import { callWithFallback, CHAINS, safeParseJSON } from "@/lib/openrouter";
 import { thisWeekStartWIB, type QuizCategory, type QuizQuestion } from "@/lib/quiz/types";
 
 export const runtime = "nodejs";
-export const maxDuration = 300; // 5 menit — generate 6 quiz pakai AI
+// Vercel Hobby plan cap di 60s. Pakai 60 supaya tidak ditolak deploy.
+// Kalau upgrade ke Pro, bisa naikkan ke 300.
+export const maxDuration = 60;
 
 // =============================================================================
 // SYSTEM PROMPTS
@@ -135,11 +137,11 @@ async function runRefresh() {
     }
   }
 
-  const results: { ok: boolean; category: QuizCategory; slot: number; error?: string }[] = [];
-
-  // Sequential biar tidak menggencet rate limit OpenRouter
-  for (const task of tasks) {
-    try {
+  // PARALLEL — Vercel Hobby plan 60s timeout terlalu pendek untuk 6 AI call
+  // sekuensial. Free tier OpenRouter ~20 req/min jadi 6 paralel aman.
+  // Promise.allSettled supaya kalau 1 gagal, yang lain tetap di-process.
+  const settled = await Promise.allSettled(
+    tasks.map(async (task) => {
       const generated = await generateQuiz(task.category);
       const { error: insErr } = await sb.from("quizzes").insert({
         week_start: weekStart,
@@ -149,19 +151,20 @@ async function runRefresh() {
         questions: generated.questions,
         generated_by: generated.model,
       });
-      if (insErr) {
-        results.push({ ok: false, ...task, error: insErr.message });
-      } else {
-        results.push({ ok: true, ...task });
-      }
-    } catch (e) {
-      results.push({
-        ok: false,
-        ...task,
-        error: e instanceof Error ? e.message : "Unknown error",
-      });
-    }
-  }
+      if (insErr) throw new Error(insErr.message);
+      return task;
+    }),
+  );
+
+  const results = settled.map((r, i) => {
+    const task = tasks[i];
+    if (r.status === "fulfilled") return { ok: true, ...task };
+    return {
+      ok: false,
+      ...task,
+      error: r.reason instanceof Error ? r.reason.message : String(r.reason),
+    };
+  });
 
   return NextResponse.json({
     ok: true,
@@ -187,7 +190,9 @@ async function generateQuiz(
     ],
     temperature: 0.75,
     maxTokens: 3500,
-    timeoutMs: 60_000,
+    // Per-attempt timeout 45s — supaya total run-time + fallback masih
+    // dalam 60s Hobby plan limit.
+    timeoutMs: 45_000,
     responseFormat: "json_object",
   });
 
