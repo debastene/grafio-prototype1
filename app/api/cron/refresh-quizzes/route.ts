@@ -14,6 +14,11 @@ import { createClient } from "@supabase/supabase-js";
 import { callWithFallback, CHAINS, safeParseJSON } from "@/lib/openrouter";
 import { thisWeekStartWIB, type QuizCategory, type QuizQuestion } from "@/lib/quiz/types";
 
+// Untuk Vercel Hobby (60s function timeout) — pakai chain pendek (cuma 2 model
+// pertama) supaya total wall-clock-time ≤ 30s per quiz, lebih cepat dari
+// CHAINS.structured penuh yang punya 6 model.
+const CRON_CHAIN = CHAINS.structured.slice(0, 2);
+
 export const runtime = "nodejs";
 // Vercel Hobby plan cap di 60s. Pakai 60 supaya tidak ditolak deploy.
 // Kalau upgrade ke Pro, bisa naikkan ke 300.
@@ -24,15 +29,15 @@ export const maxDuration = 60;
 // =============================================================================
 
 const SYS_DATSCI = `Kamu Grafio AI — kurator soal kuis data science dalam Bahasa Indonesia.
-Buat 10 soal multiple choice tingkat menengah tentang data science, statistika dasar,
+Buat 8 soal multiple choice tingkat menengah tentang data science, statistika dasar,
 machine learning fundamental, atau visualisasi data.
 
 Aturan WAJIB:
-- 10 soal, masing-masing 4 jawaban (A/B/C/D — di output sebagai array).
+- 8 soal, masing-masing 4 jawaban (A/B/C/D — di output sebagai array).
 - correct_idx: index 0-3 dari jawaban benar.
 - explanation: 2-4 kalimat menjelaskan kenapa jawaban itu benar — gunakan analogi/contoh
   konkret biar user awam paham. Hindari jargon berat.
-- Variasi topik: 3 statistika dasar, 3 ML/AI, 2 visualisasi, 2 data cleaning/eksplorasi.
+- Variasi topik: 2 statistika dasar, 2 ML/AI, 2 visualisasi, 2 data cleaning/eksplorasi.
 - Tingkat: orang yang tahu sedikit programming tapi belum jago datsci.
 - TIDAK ADA pertanyaan tentang nama tools spesifik (Python library version dll).
 
@@ -45,11 +50,11 @@ Output JSON murni:
 }`;
 
 const SYS_COMMON = `Kamu Grafio AI — kurator soal kuis pengetahuan umum dalam Bahasa Indonesia.
-Buat 10 soal multiple choice tingkat menengah tentang pengetahuan umum: sains, sejarah dunia,
+Buat 8 soal multiple choice tingkat menengah tentang pengetahuan umum: sains, sejarah dunia,
 geografi, sastra, budaya populer, ekonomi global, atau penemuan teknologi.
 
 Aturan WAJIB:
-- 10 soal, masing-masing 4 jawaban.
+- 8 soal, masing-masing 4 jawaban.
 - correct_idx: index 0-3 dari jawaban benar.
 - explanation: 2-4 kalimat — fact-based, ringan, sedikit fun-fact bila perlu.
 - Variasi topik: tidak semua dari 1 bidang. Hindari pertanyaan sangat lokal-spesifik
@@ -180,19 +185,21 @@ async function generateQuiz(
 ): Promise<{ title: string; questions: QuizQuestion[]; model: string }> {
   const sys = category === "datsci" ? SYS_DATSCI : SYS_COMMON;
 
-  const { text, model } = await callWithFallback(CHAINS.structured, {
+  const { text, model } = await callWithFallback(CRON_CHAIN, {
     messages: [
       { role: "system", content: sys },
       {
         role: "user",
-        content: `Generate 10 soal sekarang. Variasi topik & tingkat kesulitan. JSON murni.`,
+        content: `Generate 8 soal sekarang. Variasi topik & tingkat kesulitan. JSON murni.`,
       },
     ],
     temperature: 0.75,
-    maxTokens: 3500,
-    // Per-attempt timeout 45s — supaya total run-time + fallback masih
-    // dalam 60s Hobby plan limit.
-    timeoutMs: 45_000,
+    // 8 soal × ~250 token = 2000 token. Lebih ramping dari sebelumnya (3500)
+    // supaya total time per call ≤ 25s.
+    maxTokens: 2500,
+    // Per-attempt timeout pendek — total budget Vercel Hobby 60s, harus muat
+    // 2 attempt fallback + overhead. 22s × 2 + buffer = 50s.
+    timeoutMs: 22_000,
     responseFormat: "json_object",
   });
 
@@ -201,8 +208,9 @@ async function generateQuiz(
     throw new Error(`Quiz invalid: hanya ${parsed.questions?.length ?? 0} soal valid`);
   }
 
-  // Validate per-question shape, fix common drift
-  const cleaned: QuizQuestion[] = parsed.questions.slice(0, 10).map((q) => ({
+  // Validate per-question shape, fix common drift. Slice 8 sesuai target,
+  // tapi AI kadang kasih lebih atau kurang.
+  const cleaned: QuizQuestion[] = parsed.questions.slice(0, 8).map((q) => ({
     q: String(q.q ?? "").trim(),
     choices: Array.isArray(q.choices) ? q.choices.slice(0, 4).map((c) => String(c)) : [],
     correct_idx:
