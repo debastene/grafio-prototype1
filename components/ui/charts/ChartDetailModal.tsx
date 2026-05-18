@@ -52,17 +52,26 @@ export default function ChartDetailModal({
   const [tab, setTab] = useState<"settings" | "insight" | "tutorial">("settings");
   const [activePlatform, setActivePlatform] = useState<"excel" | "sheets" | "powerbi">("excel");
 
-  // Lock body scroll while open + close on Escape
+  // Lock body scroll while open + close on Escape.
+  // Kompensasi scrollbar width supaya halaman di belakang tidak SHIFT ke kanan
+  // saat scrollbar disembunyikan — penyebab "flickering" yang terlihat user.
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
+    const prevOverflow = document.body.style.overflow;
+    const prevPadding = document.body.style.paddingRight;
+    const scrollbarWidth =
+      window.innerWidth - document.documentElement.clientWidth;
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
     document.body.style.overflow = "hidden";
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => {
-      document.body.style.overflow = prev;
+      document.body.style.overflow = prevOverflow;
+      document.body.style.paddingRight = prevPadding;
       window.removeEventListener("keydown", onKey);
     };
   }, [open, onClose]);
@@ -74,7 +83,7 @@ export default function ChartDetailModal({
 
   return (
     <div
-      className="fixed inset-0 z-[100] bg-bgDeep/85 backdrop-blur-md flex items-center justify-center p-4 md:p-6 animate-fadeUp"
+      className="fixed inset-0 z-[100] bg-bgDeep/85 backdrop-blur-md flex items-center justify-center p-4 md:p-6 modal-backdrop-in"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -82,7 +91,7 @@ export default function ChartDetailModal({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="relative bg-bgSurface border border-borderColor rounded-2xl shadow-elev-lg w-full max-w-7xl max-h-[92vh] overflow-hidden flex flex-col"
+        className="relative bg-bgSurface border border-borderColor rounded-2xl shadow-elev-lg w-full max-w-7xl max-h-[92vh] overflow-hidden flex flex-col modal-panel-in"
       >
         {/* Top accent bar */}
         <div className="h-[2px] bg-gradient-to-r from-cyan via-violet to-mint" />

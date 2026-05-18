@@ -43,44 +43,91 @@ function detectDelimiter(sample: string): string {
 /**
  * Properly handles quoted CSV fields — including commas, escaped quotes (""),
  * and newlines inside cells.
+ *
+ * BUG sebelumnya: parser pakai `text.split(/\r?\n/)` DULU lalu parse quote
+ * per-line. Header CSV yang multi-line quoted seperti:
+ *
+ *   Country,"Density
+ *   (P/Km2)",Abbreviation,...
+ *
+ * jadi terpotong — quoted newline dianggap row baru. Akibatnya semua kolom
+ * setelah "Density" hilang. Versi ini state-machine penuh karakter-by-
+ * karakter yang aware quote lintas baris.
  */
-function parseCSVLine(line: string, delim: string): string[] {
-  const result: string[] = [];
+function parseCSVStream(text: string, delim: string): string[][] {
+  const rows: string[][] = [];
   let cur = "";
+  let row: string[] = [];
   let inQuote = false;
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i];
+  let i = 0;
+  while (i < text.length) {
+    const c = text[i];
     if (inQuote) {
-      if (c === '"' && line[i + 1] === '"') {
+      if (c === '"' && text[i + 1] === '"') {
         cur += '"';
-        i++;
-      } else if (c === '"') {
-        inQuote = false;
-      } else {
-        cur += c;
+        i += 2;
+        continue;
       }
+      if (c === '"') {
+        inQuote = false;
+        i++;
+        continue;
+      }
+      // Newline INSIDE quote → tetap bagian dari cell value, BUKAN row baru
+      cur += c;
+      i++;
     } else {
-      if (c === '"') inQuote = true;
-      else if (c === delim) {
-        result.push(cur);
+      if (c === '"') {
+        inQuote = true;
+        i++;
+        continue;
+      }
+      if (c === delim) {
+        row.push(cur.trim());
         cur = "";
-      } else cur += c;
+        i++;
+        continue;
+      }
+      // Row terminator (\n atau \r\n) di luar quote → push row
+      if (c === "\n" || c === "\r") {
+        row.push(cur.trim());
+        // Skip non-empty row only
+        if (row.some((v) => v.length > 0)) {
+          rows.push(row);
+        }
+        row = [];
+        cur = "";
+        // Consume \r\n as one terminator
+        if (c === "\r" && text[i + 1] === "\n") i += 2;
+        else i++;
+        continue;
+      }
+      cur += c;
+      i++;
     }
   }
-  result.push(cur);
-  return result.map((s) => s.trim());
+  // Last cell / last row
+  if (cur.length > 0 || row.length > 0) {
+    row.push(cur.trim());
+    if (row.some((v) => v.length > 0)) rows.push(row);
+  }
+  return rows;
 }
 
 function parseCSV(text: string, delim?: string): ParsedTable {
   const d = delim ?? detectDelimiter(text);
-  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
-  if (lines.length === 0) {
+  const tokens = parseCSVStream(text, d);
+  if (tokens.length === 0) {
     return { headers: [], rows: [], delimiter: d, rawRowCount: 0, format: "csv" };
   }
-  const headers = parseCSVLine(lines[0], d).map((h, i) => h || `col_${i + 1}`);
+  // Header row: pertahankan newline-as-space dalam nama kolom yang multi-line
+  const headers = tokens[0].map((h, i) => {
+    const cleaned = h.replace(/\s+/g, " ").trim();
+    return cleaned || `col_${i + 1}`;
+  });
   const rows: ParsedRow[] = [];
-  for (let i = 1; i < lines.length; i++) {
-    const cells = parseCSVLine(lines[i], d);
+  for (let r = 1; r < tokens.length; r++) {
+    const cells = tokens[r];
     const row: ParsedRow = {};
     for (let j = 0; j < headers.length; j++) {
       const v = cells[j] ?? "";

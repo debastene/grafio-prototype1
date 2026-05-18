@@ -166,3 +166,23 @@ h1, h2, h3, h4 {
   height: 1px;
   background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.3), transparent);
 }
+
+/* === Modal entrance: instan backdrop + zoom-in panel pendek =========
+   Diukur sengaja pendek (120ms) supaya tidak ada window flicker dimana
+   card di belakang transition keluar dari hover state. Animasi panjang
+   (mis. fadeUp 600ms) bikin flicker karena card terlihat lompat-lompat
+   selama backdrop ber-transisi. */
+.modal-backdrop-in {
+  animation: modal-backdrop 100ms ease-out both;
+}
+.modal-panel-in {
+  animation: modal-panel 160ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes modal-backdrop {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes modal-panel {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
