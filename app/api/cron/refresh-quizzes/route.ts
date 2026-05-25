@@ -134,7 +134,11 @@ async function runRefresh() {
   }
 
   // Generate quiz yang belum ada
-  const present = new Set(existing?.map((r) => `${r.category}:${r.slot}`) ?? []);
+  const present = new Set(
+    (existing as { category: string; slot: number }[] | null)?.map(
+      (r) => `${r.category}:${r.slot}`,
+    ) ?? [],
+  );
   const tasks: { category: QuizCategory; slot: number }[] = [];
   for (const cat of ["datsci", "common"] as QuizCategory[]) {
     for (let slot = 1; slot <= 3; slot++) {

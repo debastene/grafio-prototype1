@@ -52,7 +52,7 @@ export default function Nav() {
       .select("credits")
       .eq("id", user.id)
       .single()
-      .then(({ data }) => {
+      .then(({ data }: { data: { credits: number } | null }) => {
         if (data && typeof data.credits === "number") setCredits(data.credits);
       });
   }, [user, pathname]);

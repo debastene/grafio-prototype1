@@ -68,11 +68,18 @@ export default function QuizListPage() {
         return;
       }
 
-      const attemptByQuiz = new Map(
-        (attempts ?? []).map((a) => [a.quiz_id, a]),
+      type AttemptLite = {
+        quiz_id: string;
+        score: number;
+        total: number;
+        credits_awarded: number;
+      };
+      type QuizLite = QuizCardData["quiz"];
+      const attemptByQuiz = new Map<string, AttemptLite>(
+        ((attempts ?? []) as AttemptLite[]).map((a) => [a.quiz_id, a]),
       );
-      const cards: QuizCardData[] = (quizzes ?? []).map((q) => ({
-        quiz: q as QuizCardData["quiz"],
+      const cards: QuizCardData[] = ((quizzes ?? []) as QuizLite[]).map((q) => ({
+        quiz: q,
         attempt: attemptByQuiz.get(q.id) ?? null,
       }));
       setItems(cards);
