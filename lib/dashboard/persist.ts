@@ -34,6 +34,14 @@ function isBrowser(): boolean {
 
 /**
  * Simpan aiResult ke sessionStorage. Aman dipanggil dari SSR (no-op di server).
+ *
+ * STRIP heavy fields sebelum serialize:
+ * - profile[].numericVector: array semua nilai numerik mentah per kolom —
+ *   bisa MB-an untuk dataset besar. Dashboard tidak butuh ini untuk render
+ *   (sudah ada summary.mean/median/min/max). Strip 100%.
+ * - tableSnapshot.rows: cap ke 200 row (cukup untuk preview).
+ *
+ * Tanpa strip, dataset 196 baris × 35 kolom bisa lewat 5MB quota.
  */
 export function persistDashboard(result: EngineResult): void {
   if (!isBrowser()) return;
@@ -44,17 +52,27 @@ export function persistDashboard(result: EngineResult): void {
         headers: result.tableSnapshot.headers,
         rows: result.tableSnapshot.rows.slice(0, MAX_ROWS),
       },
+      profile: result.profile.map((p) => ({
+        ...p,
+        // Strip heavy raw arrays — dashboard render hanya butuh summary stats.
+        numericVector: undefined,
+      })) as EngineResult["profile"],
     };
     const payload: PersistedState = {
       v: 1,
       result: trimmed,
       savedAt: new Date().toISOString(),
     };
-    sessionStorage.setItem(KEY, JSON.stringify(payload));
+    const json = JSON.stringify(payload);
+    sessionStorage.setItem(KEY, json);
+    // Debug telemetry kalau perlu diagnose di devtools
+    if (typeof console !== "undefined") {
+      console.info(`[Grafio] Snapshot tersimpan (${(json.length / 1024).toFixed(0)} KB)`);
+    }
   } catch (e) {
     // QuotaExceededError atau JSON cycle — silently fail, dashboard tetap jalan
-    // tanpa persistence.
-    console.warn("[persistDashboard] gagal save:", e);
+    // tanpa persistence. Log ke console biar user bisa lapor.
+    console.warn("[Grafio] Gagal save snapshot:", e);
   }
 }
 

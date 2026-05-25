@@ -47,19 +47,16 @@ export default function Dashboard() {
    */
   const updateProjectId = searchParams?.get("update") ?? null;
 
-  // Restore aiResult dari sessionStorage saat mount (lazy initial state).
-  // Kalau ada snapshot dari refresh sebelumnya, langsung ke mode "ai".
-  // KECUALI sedang update mode — user harus upload file baru, jadi mulai segar.
-  const [mode, setMode] = useState<Mode>(() => {
-    if (updateProjectId) return "upload";
-    if (typeof window !== "undefined" && loadDashboard()) return "ai";
-    return "upload";
-  });
+  // Mulai dari upload state. Restore dari sessionStorage dilakukan di
+  // useEffect (post-mount) — TIDAK boleh di useState lazy init karena
+  // saat SSR window/sessionStorage tidak ada → state freeze ke null
+  // setelah hydration → refresh tetap balik ke upload.
+  const [mode, setMode] = useState<Mode>("upload");
   const [files, setFiles] = useState<File[]>([]);
-  const [aiResult, setAiResult] = useState<AiResult | null>(() => {
-    if (updateProjectId) return null; // start fresh saat update
-    return typeof window !== "undefined" ? loadDashboard() : null;
-  });
+  const [aiResult, setAiResult] = useState<AiResult | null>(null);
+  /** Flag supaya effect "persist on change" tidak overwrite snapshot tersimpan
+   *  dengan null pada render pertama (sebelum sempat restore). */
+  const [hydratedFromStorage, setHydratedFromStorage] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [range, setRange] = useState<"1M" | "3M" | "6M" | "1Y">("6M");
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -153,12 +150,33 @@ export default function Dashboard() {
     }
   };
 
-  // Persist aiResult ke sessionStorage tiap kali berubah (atau clear kalau null).
-  // Setelah refresh, dashboard restore tanpa user perlu re-upload.
+  // [RESTORE] Post-mount: baca sessionStorage dan restore aiResult kalau ada.
+  // Effect ini hanya jalan SEKALI saat mount.
   useEffect(() => {
+    if (updateProjectId) {
+      // Update mode: user harus upload file baru, JANGAN restore — tapi
+      // sekaligus jangan hapus snapshot lain (biar kalau user batal update,
+      // dashboard normal masih restore).
+      setHydratedFromStorage(true);
+      return;
+    }
+    const saved = loadDashboard();
+    if (saved) {
+      setAiResult(saved);
+      setMode("ai");
+    }
+    setHydratedFromStorage(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // [PERSIST] Setelah hydrate selesai, tiap aiResult berubah → save / clear.
+  // Tidak boleh jalan sebelum hydrate, kalau tidak null awal akan overwrite
+  // snapshot tersimpan.
+  useEffect(() => {
+    if (!hydratedFromStorage) return;
     if (aiResult) persistDashboard(aiResult);
     else clearDashboard();
-  }, [aiResult]);
+  }, [aiResult, hydratedFromStorage]);
 
   const reset = () => {
     setMode("upload");
