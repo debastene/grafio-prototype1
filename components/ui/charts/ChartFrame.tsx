@@ -68,16 +68,21 @@ export default function ChartFrame({
   const [modalOpen, setModalOpen] = useState(false);
   const canDiveDeeper = !!detail;
 
+  // Saat modal open, BEKUKAN card di state base — no hover, no transition.
+  // Tanpa ini, card behind modal masih transitioning 300ms dari hover→base
+  // (terlihat sebagai flicker melalui backdrop blur). Saat modal close, card
+  // sudah di base state, no animation needed.
+  const interactive = canDiveDeeper && !modalOpen;
+  const cardClass = interactive
+    ? "group relative bg-bgSurface border border-borderColor rounded-xl overflow-hidden shadow-soft transition-all duration-300 hover:border-cyan/60 hover:shadow-glow hover:-translate-y-1 hover:scale-[1.01]"
+    : "relative bg-bgSurface border border-borderColor rounded-xl overflow-hidden shadow-soft";
+
   return (
     <div
       id={id}
       data-chart-name={name}
       data-chart-id={id}
-      className={`group relative bg-bgSurface border border-borderColor rounded-xl overflow-hidden shadow-soft transition-all duration-300 ${
-        canDiveDeeper
-          ? "hover:border-cyan/60 hover:shadow-glow hover:-translate-y-1 hover:scale-[1.01]"
-          : ""
-      } ${className}`}
+      className={`${cardClass} ${className}`}
     >
       {/* Top accent bar — subtle gradient strip, jadi screenshot kelihatan punya branding */}
       <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-cyan/60 via-violet/40 to-mint/40" />
@@ -131,39 +136,34 @@ export default function ChartFrame({
         <span className="font-mono flex-shrink-0">{stamp}</span>
       </div>
 
-      {/* DIVE DEEPER AFFORDANCE (poin #3) — dua lapis biar chart tidak ke-blok:
-          1. Kecil persistent icon di header (kanan atas) untuk touch / cepat
-          2. Floating pill di tengah saat hover, dengan tagline ramah
-          3. Whole-frame click jadi shortcut (cursor-zoom-in di desktop) */}
+      {/* DIVE DEEPER AFFORDANCE (poin #3):
+          - Persistent icon di pojok (selalu visible, juga touch)
+          - Hover pill di hover (desktop) — render-only saat interactive (modal
+            tertutup) untuk hindari flicker animasi saat modal opening */}
       {canDiveDeeper && (
-        <>
-          {/* Persistent corner button — selalu visible (untuk mobile/touch) */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setModalOpen(true);
-            }}
-            aria-label={`Pelajari lebih dalam tentang ${name}`}
-            title="Pelajari lebih dalam"
-            className="absolute top-3 right-3 z-20 w-7 h-7 rounded-md bg-bgElevated/80 border border-borderColor text-muted hover:bg-cyan/15 hover:border-cyan hover:text-cyan transition-all flex items-center justify-center backdrop-blur-sm"
-          >
-            <Maximize2 className="w-3.5 h-3.5" />
-          </button>
-
-          {/* Hover invitation pill — clickable, tampil di bawah-tengah saat hover desktop.
-              Tidak nutupin chart, hanya melayang di atas footer. Tetap bisa di-klik
-              karena posisinya di area branding footer (bukan chart canvas). */}
-          <button
-            onClick={() => setModalOpen(true)}
-            aria-label={`Pelajari lebih dalam tentang ${name}`}
-            className="hidden md:flex absolute bottom-12 left-1/2 -translate-x-1/2 z-20 opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200"
-          >
-            <span className="px-3.5 py-1.5 rounded-full bg-cyan text-bgDeep text-xs font-syne font-bold shadow-glow flex items-center gap-1.5 whitespace-nowrap hover:bg-cyanSoft transition-colors">
-              <Sparkles className="w-3 h-3" />
-              Eh, pelajari lebih dalam yuk →
-            </span>
-          </button>
-        </>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setModalOpen(true);
+          }}
+          aria-label={`Pelajari lebih dalam tentang ${name}`}
+          title="Pelajari lebih dalam"
+          className="absolute top-3 right-3 z-20 w-7 h-7 rounded-md bg-bgElevated/80 border border-borderColor text-muted hover:bg-cyan/15 hover:border-cyan hover:text-cyan transition-colors flex items-center justify-center backdrop-blur-sm"
+        >
+          <Maximize2 className="w-3.5 h-3.5" />
+        </button>
+      )}
+      {interactive && (
+        <button
+          onClick={() => setModalOpen(true)}
+          aria-label={`Pelajari lebih dalam tentang ${name}`}
+          className="hidden md:flex absolute bottom-12 left-1/2 -translate-x-1/2 z-20 opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200"
+        >
+          <span className="px-3.5 py-1.5 rounded-full bg-cyan text-bgDeep text-xs font-syne font-bold shadow-glow flex items-center gap-1.5 whitespace-nowrap hover:bg-cyanSoft transition-colors">
+            <Sparkles className="w-3 h-3" />
+            Eh, pelajari lebih dalam yuk →
+          </span>
+        </button>
       )}
 
       {/* FULL-SCREEN DETAIL MODAL */}

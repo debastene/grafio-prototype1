@@ -475,7 +475,7 @@ export default function Dashboard() {
                     name: c,
                     role: "axis kolom & baris matriks",
                   })),
-                  renderChart: () => <CorrHeatmap matrix={aiResult.analysis.correlationMatrix!} />,
+                  renderChart: () => <CorrHeatmap matrix={aiResult.analysis.correlationMatrix!} full />,
                 }}
               >
                 <CorrHeatmap matrix={aiResult.analysis.correlationMatrix} />
@@ -1216,7 +1216,14 @@ export default function Dashboard() {
   );
 }
 
-function CorrHeatmap({ matrix }: { matrix: { columns: string[]; matrix: number[][] } }) {
+function CorrHeatmap({
+  matrix,
+  full = false,
+}: {
+  matrix: { columns: string[]; matrix: number[][] };
+  /** Modal view → tampilkan label lebih panjang & cell lebih besar. */
+  full?: boolean;
+}) {
   const { columns, matrix: m } = matrix;
   const cellColor = (r: number) => {
     const a = Math.abs(r);
@@ -1226,25 +1233,31 @@ function CorrHeatmap({ matrix }: { matrix: { columns: string[]; matrix: number[]
     }
     return `rgba(255, 77, 109, ${0.1 + a * 0.85})`;
   };
+  // Label thresholds: kecil di card, lebih panjang di modal
+  const headerMaxLen = full ? 18 : 9;
+  const rowMaxLen = full ? 24 : 14;
+  const minCell = full ? 76 : 56;
+  const minRowLabel = full ? 180 : 120;
+  const fontCls = full ? "text-xs" : "text-[10px]";
 
   return (
     <div className="overflow-auto">
       <div
         className="grid gap-1 min-w-full"
         style={{
-          gridTemplateColumns: `minmax(120px, auto) repeat(${columns.length}, minmax(56px, 1fr))`,
+          gridTemplateColumns: `minmax(${minRowLabel}px, auto) repeat(${columns.length}, minmax(${minCell}px, 1fr))`,
         }}
       >
         <div />
         {columns.map((c) => (
-          <div key={`h-${c}`} className="text-[10px] text-muted text-center pb-1 truncate" title={c}>
-            {c.length > 9 ? c.slice(0, 8) + "…" : c}
+          <div key={`h-${c}`} className={`${fontCls} text-muted text-center pb-1 truncate`} title={c}>
+            {c.length > headerMaxLen ? c.slice(0, headerMaxLen - 1) + "…" : c}
           </div>
         ))}
         {columns.map((row, i) => (
           <Fragment key={`r-${row}`}>
-            <div className="text-[10px] text-muted pr-2 flex items-center justify-end truncate" title={row}>
-              {row.length > 14 ? row.slice(0, 13) + "…" : row}
+            <div className={`${fontCls} text-muted pr-2 flex items-center justify-end truncate`} title={row}>
+              {row.length > rowMaxLen ? row.slice(0, rowMaxLen - 1) + "…" : row}
             </div>
             {columns.map((col, j) => {
               const r = m[i]?.[j] ?? 0;

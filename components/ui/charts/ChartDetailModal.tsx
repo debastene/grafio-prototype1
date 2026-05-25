@@ -1,5 +1,6 @@
 "use client";
 import { ReactNode, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { X, BookOpen, Brain, Settings2, Layers, FileSpreadsheet, Sparkles } from "lucide-react";
 import Logo from "../Logo";
 import {
@@ -51,6 +52,12 @@ export default function ChartDetailModal({
 }: ChartDetailModalProps) {
   const [tab, setTab] = useState<"settings" | "insight" | "tutorial">("settings");
   const [activePlatform, setActivePlatform] = useState<"excel" | "sheets" | "powerbi">("excel");
+  const [mounted, setMounted] = useState(false);
+
+  // Mount flag untuk SSR-safety dengan createPortal (document tidak ada di server).
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Lock body scroll while open + close on Escape.
   // Kompensasi scrollbar width supaya halaman di belakang tidak SHIFT ke kanan
@@ -76,12 +83,16 @@ export default function ChartDetailModal({
     };
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
   const tutorials = buildAllTutorials(chartKind, columnsUsed);
   const activeTut = tutorials.find((t) => t.platform === activePlatform)!;
 
-  return (
+  // Render via PORTAL ke <body> — escape stacking context apapun dari parent
+  // (mis. card pakai transform:scale jadi bikin stacking context baru,
+  // bikin modal terjebak di z-auto card walau z-[100]). Portal pastikan modal
+  // selalu di top-level z-order.
+  return createPortal(
     <div
       className="fixed inset-0 z-[100] bg-bgDeep/85 backdrop-blur-md flex items-center justify-center p-4 md:p-6 modal-backdrop-in"
       onClick={onClose}
@@ -191,7 +202,8 @@ export default function ChartDetailModal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
