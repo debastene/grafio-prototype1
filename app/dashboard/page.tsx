@@ -1,5 +1,6 @@
 "use client";
-import { useState, useMemo, Fragment } from "react";
+import { useState, useMemo, useEffect, Fragment } from "react";
+import { persistDashboard, loadDashboard, clearDashboard } from "@/lib/dashboard/persist";
 import Nav from "@/components/ui/Nav";
 import Footer from "@/components/ui/Footer";
 import UploadZone from "@/components/ui/UploadZone";
@@ -25,10 +26,11 @@ import {
   FileText, Copy, Check, Cpu, Database, AlertTriangle, Loader2,
   Lightbulb, MessageSquare, Save, FolderOpen, X as XIcon,
 } from "lucide-react";
-import { saveProject } from "@/lib/db/projects";
+import { saveProject, updateProject } from "@/lib/db/projects";
 import { SUPABASE_CONFIGURED } from "@/lib/db/supabase";
 import { getSession } from "@/lib/auth/storage";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu"];
 const SPARK_COLORS = ["#00D4FF", "#00FFB3", "#FF6FB5", "#7B5EA7"];
@@ -36,9 +38,28 @@ const SPARK_COLORS = ["#00D4FF", "#00FFB3", "#FF6FB5", "#7B5EA7"];
 type Mode = "upload" | "demo" | "ai";
 
 export default function Dashboard() {
-  const [mode, setMode] = useState<Mode>("upload");
+  const searchParams = useSearchParams();
+  /**
+   * Update mode: kalau user klik "Update Project" di project detail,
+   * mereka di-redirect ke /dashboard?update=<id>. Dashboard tahu ini bukan
+   * analisis baru — pas "save", akan call updateProject(id, …) bukan
+   * saveProject(…). Banner di atas Workspace memberi tahu konteksnya.
+   */
+  const updateProjectId = searchParams?.get("update") ?? null;
+
+  // Restore aiResult dari sessionStorage saat mount (lazy initial state).
+  // Kalau ada snapshot dari refresh sebelumnya, langsung ke mode "ai".
+  // KECUALI sedang update mode — user harus upload file baru, jadi mulai segar.
+  const [mode, setMode] = useState<Mode>(() => {
+    if (updateProjectId) return "upload";
+    if (typeof window !== "undefined" && loadDashboard()) return "ai";
+    return "upload";
+  });
   const [files, setFiles] = useState<File[]>([]);
-  const [aiResult, setAiResult] = useState<AiResult | null>(null);
+  const [aiResult, setAiResult] = useState<AiResult | null>(() => {
+    if (updateProjectId) return null; // start fresh saat update
+    return typeof window !== "undefined" ? loadDashboard() : null;
+  });
   const [shareCopied, setShareCopied] = useState(false);
   const [range, setRange] = useState<"1M" | "3M" | "6M" | "1Y">("6M");
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -65,12 +86,18 @@ export default function Dashboard() {
     const session = getSession();
     if (!session) {
       // Send user to login, return to dashboard after
-      window.location.href = "/login?next=/dashboard";
+      const next = updateProjectId
+        ? `/dashboard?update=${updateProjectId}`
+        : "/dashboard";
+      window.location.href = `/login?next=${encodeURIComponent(next)}`;
       return;
     }
     setSaveState("saving");
     setSaveError(null);
-    const res = await saveProject({ result: aiResult });
+    // Cabang: update existing vs create new
+    const res = updateProjectId
+      ? await updateProject(updateProjectId, aiResult)
+      : await saveProject({ result: aiResult });
     if (!res.ok) {
       setSaveState("error");
       setSaveError(res.error);
@@ -126,12 +153,20 @@ export default function Dashboard() {
     }
   };
 
+  // Persist aiResult ke sessionStorage tiap kali berubah (atau clear kalau null).
+  // Setelah refresh, dashboard restore tanpa user perlu re-upload.
+  useEffect(() => {
+    if (aiResult) persistDashboard(aiResult);
+    else clearDashboard();
+  }, [aiResult]);
+
   const reset = () => {
     setMode("upload");
     setFiles([]);
     setAiResult(null);
     setInspectionStarted(false);
     setShowFullPreview(false);
+    clearDashboard();
   };
 
   /** Callback dari AnalysisLauncher saat user pencet "Ganti file" di wizard. */
@@ -190,6 +225,31 @@ export default function Dashboard() {
       <Nav />
       <div className="absolute inset-0 grid-bg pointer-events-none opacity-50" />
       <div className="relative max-w-7xl mx-auto px-6 py-10">
+        {/* UPDATE MODE BANNER — saat user datang dari "Update Project" di
+            project history. Jelas-jelas tampilin konteks supaya user tidak
+            bingung kenapa diminta upload file lagi. */}
+        {updateProjectId && (
+          <div className="mb-6 rounded-xl border border-cyan/40 bg-cyan/8 px-5 py-3 flex items-start gap-3">
+            <RefreshCw className="w-4 h-4 text-cyan mt-0.5 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-syne font-bold text-white">
+                Mode Update Project
+              </p>
+              <p className="text-xs text-muted mt-0.5 leading-relaxed">
+                Upload file (boleh versi terbaru dari data yang sama, atau data
+                berbeda) lalu jalankan analisis. Saat <span className="text-cyan font-semibold">Update Project</span>{" "}
+                di-klik, project lama akan ditimpa dengan hasil analisis baru ini.
+              </p>
+            </div>
+            <Link
+              href={`/projects/${updateProjectId}`}
+              className="text-[11px] text-muted hover:text-white flex items-center gap-1 flex-shrink-0"
+            >
+              Batal <XIcon className="w-3 h-3" />
+            </Link>
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
           <div>
@@ -1117,7 +1177,7 @@ export default function Dashboard() {
                 )}
               </Button>
 
-              {/* Save Project button */}
+              {/* Save / Update Project button */}
               {mode === "ai" && (
                 <button
                   onClick={onSaveProject}
@@ -1127,21 +1187,29 @@ export default function Dashboard() {
                       ? "border-mint/40 bg-mint/10 text-mint"
                       : saveState === "error"
                         ? "border-danger/40 bg-danger/10 text-danger"
-                        : "border-purple/40 bg-purple/10 text-purple hover:bg-purple/20"
+                        : updateProjectId
+                          ? "border-cyan/40 bg-cyan/10 text-cyan hover:bg-cyan/20"
+                          : "border-purple/40 bg-purple/10 text-purple hover:bg-purple/20"
                   }`}
                   title={saveError ?? undefined}
                 >
                   {saveState === "saving" ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin" /> Menyimpan…
+                      <Loader2 className="w-4 h-4 animate-spin" />{" "}
+                      {updateProjectId ? "Memperbarui…" : "Menyimpan…"}
                     </>
                   ) : saveState === "saved" ? (
                     <>
-                      <Check className="w-4 h-4" /> Tersimpan
+                      <Check className="w-4 h-4" />{" "}
+                      {updateProjectId ? "Project diperbarui" : "Tersimpan"}
                     </>
                   ) : saveState === "error" ? (
                     <>
                       <AlertTriangle className="w-4 h-4" /> Gagal save
+                    </>
+                  ) : updateProjectId ? (
+                    <>
+                      <RefreshCw className="w-4 h-4" /> Update Project
                     </>
                   ) : (
                     <>

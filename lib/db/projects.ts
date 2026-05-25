@@ -129,6 +129,63 @@ export async function saveProject(input: SaveProjectInput): Promise<SaveProjectR
 }
 
 // =============================================================================
+// UPDATE — re-analyze flow (overwrite snapshot dengan hasil analisis baru)
+// =============================================================================
+
+/**
+ * Update project existing dengan EngineResult baru. Field metadata
+ * (domain, row_count, summary, conclusion, snapshot, thumbnail) ditimpa.
+ * Name & created_at tidak diubah.
+ *
+ * Dipakai oleh flow "Update Project" — user buka project lama, klik tombol
+ * Update → dashboard load wizard lagi → setelah analisis selesai, panggil
+ * fungsi ini bukan saveProject.
+ */
+export async function updateProject(
+  id: string,
+  result: EngineResult,
+): Promise<SaveProjectResult> {
+  if (!SUPABASE_CONFIGURED) {
+    return {
+      ok: false,
+      error: "Database belum di-setup. Lihat README.md untuk panduan Supabase setup.",
+    };
+  }
+  const sb = getBrowserSupabase();
+  if (!sb) return { ok: false, error: "Supabase client unavailable." };
+
+  const { data: authData } = await sb.auth.getUser();
+  if (!authData.user) {
+    return { ok: false, error: "Login dulu untuk update project." };
+  }
+
+  const updateRow = {
+    file_name: result.fileName,
+    domain_id: result.domain.id ?? "generic",
+    domain_name: result.domain.name ?? "Generic",
+    domain_emoji: result.domain.emoji ?? "📊",
+    row_count: result.rowCount,
+    column_count: result.columnCount,
+    health_score: result.cleaning?.healthScoreAfter ?? null,
+    summary: result.summary?.slice(0, 1000) ?? "",
+    conclusion: result.conclusion?.slice(0, 1500) ?? null,
+    thumbnail: buildThumbnail(result),
+    snapshot: trimSnapshot(result),
+  };
+
+  const { data, error } = await sb
+    .from("projects")
+    .update(updateRow)
+    .eq("id", id)
+    .eq("user_id", authData.user.id) // double-check ownership (RLS already enforces)
+    .select("id")
+    .single();
+
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, id: (data as { id: string }).id };
+}
+
+// =============================================================================
 // LIST
 // =============================================================================
 

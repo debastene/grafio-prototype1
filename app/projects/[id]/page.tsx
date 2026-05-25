@@ -7,19 +7,23 @@ import Footer from "@/components/ui/Footer";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import AiAssistant from "@/components/ui/AiAssistant";
-import ExplainButton from "@/components/ui/ExplainButton";
+import InsightPanel from "@/components/ui/InsightPanel";
 import KpiCard from "@/components/ui/charts/KpiCard";
 import ChartSwitcher from "@/components/ui/charts/ChartSwitcher";
+import ChartFrame from "@/components/ui/charts/ChartFrame";
+import BarChart from "@/components/ui/charts/BarChart";
 import DoughnutChart from "@/components/ui/charts/DoughnutChart";
 import ScatterChart from "@/components/ui/charts/ScatterChart";
-import InsightPanel from "@/components/ui/InsightPanel";
+import LineAreaChart from "@/components/ui/charts/LineAreaChart";
 import { getProject, deleteProject } from "@/lib/db/projects";
 import type { ProjectRow } from "@/lib/db/types";
 import type { EngineResult } from "@/lib/engine";
 import {
   ArrowLeft, Calendar, Cpu, Database, Heart, Lightbulb, MessageSquare,
-  AlertTriangle, FileText, Loader2, Trash2, Sparkles, Pencil,
+  AlertTriangle, FileText, Loader2, Trash2, Sparkles, RefreshCw,
 } from "lucide-react";
+
+const SPARK_COLORS = ["#00D4FF", "#00FFB3", "#FF6FB5", "#7B5EA7"];
 
 export default function ProjectDetail() {
   const params = useParams<{ id: string }>();
@@ -70,6 +74,22 @@ export default function ProjectDetail() {
     };
   }, [result]);
 
+  const kpiCards = useMemo(() => {
+    if (!result?.kpis?.length) return [];
+    const thumb = Array.isArray(project?.thumbnail)
+      ? (project!.thumbnail.filter((v) => typeof v === "number") as number[])
+      : [];
+    return result.kpis.slice(0, 4).map((k, i) => ({
+      ...k,
+      spark: thumb.length >= 3
+        ? thumb
+        : Array.from({ length: 8 }, (_, j) =>
+            20 + Math.round(Math.sin(i + j / 2) * 15 + j * (k.change >= 0 ? 2 : -1.2)),
+          ),
+      color: SPARK_COLORS[i % SPARK_COLORS.length],
+    }));
+  }, [result, project]);
+
   const onDelete = async () => {
     if (!project) return;
     if (!confirm("Hapus project ini? Tidak bisa dibatalkan.")) return;
@@ -79,6 +99,13 @@ export default function ProjectDetail() {
       return;
     }
     router.push("/projects");
+  };
+
+  const onUpdate = () => {
+    if (!project) return;
+    // Redirect ke dashboard dengan ?update=<id> — dashboard akan deteksi
+    // dan jalankan flow re-analyze (upload file ulang → wizard → save sebagai UPDATE).
+    router.push(`/dashboard?update=${project.id}`);
   };
 
   const onExportPdf = async () => {
@@ -154,11 +181,28 @@ export default function ProjectDetail() {
                         hour: "2-digit",
                         minute: "2-digit",
                       })}
+                      {project.updated_at && project.updated_at !== project.created_at && (
+                        <>
+                          {" "} · diperbarui{" "}
+                          {new Date(project.updated_at).toLocaleString("id", {
+                            day: "numeric",
+                            month: "short",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </>
+                      )}
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={onUpdate}
+                    className="px-3 py-2 rounded-md border border-cyan/40 bg-cyan/10 text-cyan hover:bg-cyan/20 text-sm flex items-center gap-2 transition-colors font-semibold"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" /> Update Project
+                  </button>
                   <Link href="/dashboard">
                     <Button variant="ghost" size="sm">
                       <Sparkles className="w-3.5 h-3.5" /> Analisis Baru
@@ -186,9 +230,10 @@ export default function ProjectDetail() {
               </div>
             </div>
 
-            {/* SUMMARY CARD */}
+            {/* AI SUMMARY BANNER */}
             {project.summary && (
               <div className="glass rounded-2xl p-5 mb-6 relative overflow-hidden">
+                <div className="absolute -top-12 -right-12 w-40 h-40 bg-cyan/15 blur-3xl rounded-full pointer-events-none" />
                 <div className="relative flex items-start gap-3">
                   <div className="w-10 h-10 rounded-lg bg-cyan/15 border border-cyan/30 flex items-center justify-center flex-shrink-0">
                     <Cpu className="w-5 h-5 text-cyan" />
@@ -234,45 +279,66 @@ export default function ProjectDetail() {
               </div>
             )}
 
-            {/* META STATS ROW */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <MiniStat icon={Database} label="Total Baris" value={project.row_count.toLocaleString("id")} color="cyan" />
-              <MiniStat icon={Database} label="Kolom" value={project.column_count.toString()} color="purple" />
-              {project.health_score != null && (
-                <MiniStat
-                  icon={Heart}
-                  label="Health Score"
-                  value={`${project.health_score}/100`}
-                  color={project.health_score >= 80 ? "mint" : project.health_score >= 60 ? "cyan" : "warning"}
-                />
-              )}
-              <MiniStat
-                icon={AlertTriangle}
-                label="Outliers Terdeteksi"
-                value={(result.analysis?.anomalies?.reduce((s, a) => s + a.count, 0) ?? 0).toString()}
-                color="warning"
-              />
-            </div>
+            {/* COLUMN PROFILE */}
+            {result.profile && result.profile.length > 0 && (
+              <Card>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Database className="w-4 h-4 text-cyan" />
+                    <h3 className="font-syne font-semibold text-white text-sm">Profil Kolom Terdeteksi</h3>
+                  </div>
+                  <span className="text-[10px] text-muted">{result.profile.length} kolom</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-left text-muted border-b border-borderColor">
+                        <th className="py-2 pr-4">Kolom</th>
+                        <th className="py-2 pr-4">Tipe</th>
+                        <th className="py-2 pr-4 text-right">Unique</th>
+                        <th className="py-2 pr-4 text-right">Missing</th>
+                        <th className="py-2 pr-4 text-right">Mean / Top</th>
+                        <th className="py-2 pr-4 text-right">Outlier</th>
+                      </tr>
+                    </thead>
+                    <tbody className="text-white">
+                      {result.profile.slice(0, 12).map((p) => (
+                        <tr key={p.name} className="border-b border-borderColor/50 hover:bg-bgElevated/40">
+                          <td className="py-2 pr-4 font-mono truncate max-w-[180px]" title={p.name}>
+                            {p.isLikelyTarget && <span className="text-mint mr-1">★</span>}
+                            {p.name}
+                          </td>
+                          <td className="py-2 pr-4">
+                            <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded ${typeColor(p.type)}`}>
+                              {p.type}
+                            </span>
+                          </td>
+                          <td className="py-2 pr-4 text-right font-mono">{p.unique}</td>
+                          <td className={`py-2 pr-4 text-right font-mono ${p.missingPct > 0.2 ? "text-warning" : "text-muted"}`}>
+                            {(p.missingPct * 100).toFixed(0)}%
+                          </td>
+                          <td className="py-2 pr-4 text-right font-mono text-muted">
+                            {p.summary
+                              ? p.summary.mean.toLocaleString("id", { maximumFractionDigits: 2 })
+                              : p.topValues?.[0]?.value ?? "—"}
+                          </td>
+                          <td className={`py-2 pr-4 text-right font-mono ${(p.outlierCount ?? 0) > 0 ? "text-warning" : "text-muted"}`}>
+                            {p.outlierCount ?? 0}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            )}
 
             {/* KPI CARDS */}
-            {result.kpis && result.kpis.length > 0 && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                {result.kpis.slice(0, 4).map((k, i) => {
-                  const thumb = Array.isArray(project.thumbnail)
-                    ? (project.thumbnail.filter((v) => typeof v === "number") as number[])
-                    : [];
-                  const spark = thumb.length >= 3 ? thumb : [20, 30, 28, 41, 38, 52, 60, 68];
-                  return (
-                    <KpiCard
-                      key={i}
-                      label={k.label}
-                      value={k.value}
-                      change={k.change}
-                      spark={spark}
-                      color={["#00D4FF", "#00FFB3", "#FF6FB5", "#7B5EA7"][i % 4]}
-                    />
-                  );
-                })}
+            {kpiCards.length > 0 && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 my-6">
+                {kpiCards.map((k, i) => (
+                  <KpiCard key={i} {...k} />
+                ))}
               </div>
             )}
 
@@ -280,21 +346,34 @@ export default function ProjectDetail() {
             <div className="grid lg:grid-cols-3 gap-6 mb-6">
               <div className="lg:col-span-2">
                 {primaryChart && (
-                  <Card>
-                    <ExplainButton
-                      chartType="Recommended Chart"
-                      chartTitle={primaryChart.title}
-                      chartDescription="Chart utama project snapshot"
-                      labels={primaryChart.labels}
-                      datasets={primaryChart.series.map((s) => ({ label: s.label, data: s.data }))}
-                      domain={result.domain?.name}
-                    />
-                    <div className="mb-2">
-                      <p className="text-xs uppercase tracking-widest text-cyan">From Snapshot</p>
-                      <h3 className="font-syne font-bold text-white text-lg">{primaryChart.title}</h3>
-                    </div>
+                  <ChartFrame
+                    id="chart-primary"
+                    name={primaryChart.title}
+                    category="Chart Utama · From Snapshot"
+                    subtitle={`${primaryChart.series.length} seri data · ${primaryChart.labels.length} titik`}
+                    source={project.file_name}
+                    insight={result.chartInsights?.["chart-primary"]}
+                    detail={{
+                      chartKind: "line",
+                      columnsUsed: [
+                        {
+                          name: result.analysis?.primaryDateCol ?? result.analysis?.primaryCategoryCol ?? "axis X",
+                          role: "axis X (kategori/waktu)",
+                        },
+                        ...primaryChart.series.map((s) => ({
+                          name: s.label,
+                          role: "axis Y (nilai numerik)",
+                        })),
+                      ],
+                      renderChart: (h) => (
+                        <div style={{ height: h }}>
+                          <ChartSwitcher labels={primaryChart.labels} series={primaryChart.series} />
+                        </div>
+                      ),
+                    }}
+                  >
                     <ChartSwitcher labels={primaryChart.labels} series={primaryChart.series} />
-                  </Card>
+                  </ChartFrame>
                 )}
               </div>
               <div>
@@ -309,35 +388,234 @@ export default function ProjectDetail() {
               </div>
             )}
 
-            {/* DISTRIBUTION + SCATTER (if available) */}
-            <div className="grid lg:grid-cols-2 gap-5 mb-6">
+            {/* CORRELATION MATRIX */}
+            {result.analysis?.correlationMatrix && (
+              <div className="mb-6">
+                <ChartFrame
+                  id="chart-correlation-matrix"
+                  name="Matriks Korelasi Pearson"
+                  category="Correlation Matrix"
+                  subtitle={`Pearson r untuk ${result.analysis.correlationMatrix.columns.length} kolom numerik · biru = positif, merah = negatif`}
+                  source={project.file_name}
+                  insight={result.chartInsights?.["chart-correlation-matrix"]}
+                  detail={{
+                    chartKind: "heatmap",
+                    columnsUsed: result.analysis.correlationMatrix.columns.map((c) => ({
+                      name: c,
+                      role: "axis kolom & baris matriks",
+                    })),
+                    renderChart: () => <CorrHeatmap matrix={result.analysis.correlationMatrix!} full />,
+                  }}
+                >
+                  <CorrHeatmap matrix={result.analysis.correlationMatrix} />
+                </ChartFrame>
+              </div>
+            )}
+
+            {/* TOP CORRELATIONS */}
+            {result.analysis && result.analysis.correlations.length > 0 && (
+              <Card className="mb-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest text-cyan">Pearson Correlation</p>
+                    <h4 className="font-syne font-semibold text-white text-sm">
+                      Top {result.analysis.correlations.length} pasangan kolom
+                    </h4>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  {result.analysis.correlations.map((c, i) => {
+                    const pct = Math.round(Math.abs(c.r) * 100);
+                    const positive = c.r > 0;
+                    return (
+                      <div key={i} className="flex items-center gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-3 mb-1">
+                            <p className="text-xs text-white truncate font-mono" title={`${c.a} ↔ ${c.b}`}>
+                              {c.a} <span className="text-muted">↔</span> {c.b}
+                            </p>
+                            <span className={`text-[11px] font-mono ${positive ? "text-mint" : "text-danger"}`}>
+                              r = {c.r.toFixed(3)}
+                            </span>
+                          </div>
+                          <div className="h-1.5 bg-bgSurface rounded-full overflow-hidden">
+                            <div
+                              className={`h-full ${positive ? "bg-mint" : "bg-danger"} transition-all`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        </div>
+                        <span className={`text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-full border ${positive ? "text-mint border-mint/30 bg-mint/10" : "text-danger border-danger/30 bg-danger/10"}`}>
+                          {c.strength}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
+            )}
+
+            {/* CHART GRID */}
+            <div className="grid lg:grid-cols-3 md:grid-cols-2 gap-5 mb-6">
               {result.charts?.distribution && (
-                <Card>
-                  <p className="text-[10px] uppercase tracking-widest text-cyan">Distribution</p>
-                  <h4 className="font-syne font-semibold text-white text-sm mb-3">
-                    {result.analysis?.primaryCategoryCol ?? "Distribusi"}
-                  </h4>
+                <ChartFrame
+                  id="chart-distribution"
+                  name={`Distribusi ${result.analysis?.primaryCategoryCol ?? "Kategori"}`}
+                  category="Distribution"
+                  subtitle={`${result.charts.distribution.labels.length} kategori unik`}
+                  source={project.file_name}
+                  insight={result.chartInsights?.["chart-distribution"]}
+                  detail={{
+                    chartKind: "doughnut",
+                    columnsUsed: [
+                      { name: result.analysis?.primaryCategoryCol ?? "kategori", role: "label kategori" },
+                      { name: "(count)", role: "nilai per slice" },
+                    ],
+                    renderChart: (h) => (
+                      <DoughnutChart
+                        height={h}
+                        labels={result.charts.distribution!.labels}
+                        data={result.charts.distribution!.data}
+                        centerLabel={result.charts.distribution!.data.reduce((a, b) => a + b, 0).toLocaleString("id")}
+                      />
+                    ),
+                  }}
+                >
                   <DoughnutChart
                     height={240}
                     labels={result.charts.distribution.labels}
                     data={result.charts.distribution.data}
                     centerLabel={result.charts.distribution.data.reduce((a, b) => a + b, 0).toLocaleString("id")}
                   />
-                </Card>
+                </ChartFrame>
               )}
+
               {result.charts?.scatter && (
-                <Card>
-                  <p className="text-[10px] uppercase tracking-widest text-cyan">Correlation</p>
-                  <h4 className="font-syne font-semibold text-white text-sm mb-3 truncate">
-                    {result.charts.scatter.xLabel} × {result.charts.scatter.yLabel}
-                  </h4>
+                <ChartFrame
+                  id="chart-scatter"
+                  name={`${result.charts.scatter.xLabel} × ${result.charts.scatter.yLabel}`}
+                  category="Correlation"
+                  subtitle="Pola hubungan dua variabel numerik"
+                  source={project.file_name}
+                  insight={result.chartInsights?.["chart-scatter"]}
+                  detail={{
+                    chartKind: "scatter",
+                    columnsUsed: [
+                      { name: result.charts.scatter.xLabel, role: "axis X (numerik)" },
+                      { name: result.charts.scatter.yLabel, role: "axis Y (numerik)" },
+                    ],
+                    renderChart: (h) => (
+                      <ScatterChart
+                        height={h}
+                        series={[{ label: "Data points", data: result.charts.scatter!.points }]}
+                      />
+                    ),
+                  }}
+                >
                   <ScatterChart
                     height={240}
                     series={[{ label: "Data points", data: result.charts.scatter.points }]}
                   />
-                </Card>
+                </ChartFrame>
+              )}
+
+              {result.charts?.stacked && (
+                <ChartFrame
+                  id="chart-stacked"
+                  name={`${result.charts.stacked.series.map((s) => s.label).join(" + ")} per ${result.analysis?.primaryCategoryCol}`}
+                  category="Stacked Composition"
+                  subtitle="Komposisi metrik per kategori"
+                  source={project.file_name}
+                  insight={result.chartInsights?.["chart-stacked"]}
+                  className="md:col-span-2"
+                  detail={{
+                    chartKind: "bar-stacked",
+                    columnsUsed: [
+                      { name: result.analysis?.primaryCategoryCol ?? "kategori", role: "axis X (kategori)" },
+                      ...result.charts.stacked.series.map((s) => ({ name: s.label, role: "axis Y (stack)" })),
+                    ],
+                    renderChart: (h) => (
+                      <BarChart
+                        stacked
+                        height={h}
+                        labels={result.charts.stacked!.labels}
+                        series={result.charts.stacked!.series}
+                      />
+                    ),
+                  }}
+                >
+                  <BarChart
+                    stacked
+                    height={260}
+                    labels={result.charts.stacked.labels}
+                    series={result.charts.stacked.series}
+                  />
+                </ChartFrame>
+              )}
+
+              {result.charts?.primary?.series && result.charts.primary.series.length > 0 && (
+                <ChartFrame
+                  id="chart-trend-detail"
+                  name={`Tren ${result.charts.primary.series[0].label}`}
+                  category="Trend Detail"
+                  subtitle="Detail seri utama dalam line area"
+                  source={project.file_name}
+                  insight={result.chartInsights?.["chart-trend-detail"]}
+                  detail={{
+                    chartKind: "area",
+                    columnsUsed: [
+                      {
+                        name: result.analysis?.primaryDateCol ?? result.analysis?.primaryCategoryCol ?? "axis X",
+                        role: "axis X",
+                      },
+                      { name: result.charts.primary.series[0].label, role: "axis Y (nilai numerik)" },
+                    ],
+                    renderChart: (h) => (
+                      <LineAreaChart
+                        height={h}
+                        labels={result.charts.primary.labels}
+                        series={[result.charts.primary.series[0]]}
+                      />
+                    ),
+                  }}
+                >
+                  <LineAreaChart
+                    height={240}
+                    labels={result.charts.primary.labels}
+                    series={[result.charts.primary.series[0]]}
+                  />
+                </ChartFrame>
               )}
             </div>
+
+            {/* ANOMALIES */}
+            {result.analysis && result.analysis.anomalies.length > 0 && (
+              <Card className="mb-6">
+                <div className="flex items-center gap-2 mb-3">
+                  <AlertTriangle className="w-4 h-4 text-warning" />
+                  <h4 className="font-syne font-semibold text-white text-sm">
+                    Outliers Terdeteksi (Z-score ≥ 2.5)
+                  </h4>
+                </div>
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {result.analysis.anomalies.map((a, i) => (
+                    <div key={i} className="rounded-lg border border-borderColor bg-bgSurface/60 p-3">
+                      <p className="font-syne text-white text-sm mb-1">{a.column}</p>
+                      <p className="text-xs text-muted">
+                        {a.count} outlier · Z-max{" "}
+                        <span className="font-mono text-warning">{a.topExample?.zscore.toFixed(2)}</span>
+                        {a.topExample && (
+                          <>
+                            {" "}@ baris{" "}
+                            <span className="font-mono text-white">#{a.topExample.rowIndex + 1}</span>
+                          </>
+                        )}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
 
             {/* RAW DATA PREVIEW */}
             {result.tableSnapshot?.rows?.length > 0 && (
@@ -346,7 +624,7 @@ export default function ProjectDetail() {
                   <div>
                     <p className="text-[10px] uppercase tracking-widest text-cyan">Snapshot Data</p>
                     <h4 className="font-syne font-semibold text-white text-sm">
-                      Preview ({result.tableSnapshot.rows.length} baris pertama)
+                      Preview ({Math.min(20, result.tableSnapshot.rows.length)} baris pertama)
                     </h4>
                   </div>
                   <span className="text-[10px] text-muted">
@@ -392,25 +670,86 @@ export default function ProjectDetail() {
   );
 }
 
-function MiniStat({
-  icon: Icon, label, value, color,
+// ============================================================
+// CorrHeatmap (sama dengan dashboard — duplicate untuk decouple)
+// ============================================================
+
+function CorrHeatmap({
+  matrix,
+  full = false,
 }: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: string;
-  color: "cyan" | "purple" | "mint" | "warning";
+  matrix: { columns: string[]; matrix: number[][] };
+  full?: boolean;
 }) {
-  const cls: Record<string, string> = {
-    cyan: "border-cyan/30 bg-cyan/5 text-cyan",
-    purple: "border-purple/30 bg-purple/5 text-purple",
-    mint: "border-mint/30 bg-mint/5 text-mint",
-    warning: "border-warning/30 bg-warning/5 text-warning",
+  const { columns, matrix: m } = matrix;
+  const cellColor = (r: number) => {
+    const a = Math.abs(r);
+    if (r >= 0) return `rgba(0, 212, 255, ${0.1 + a * 0.85})`;
+    return `rgba(255, 77, 109, ${0.1 + a * 0.85})`;
   };
+  const headerMaxLen = full ? 18 : 9;
+  const rowMaxLen = full ? 24 : 14;
+  const minCell = full ? 76 : 56;
+  const minRowLabel = full ? 180 : 120;
+  const fontCls = full ? "text-xs" : "text-[10px]";
+
   return (
-    <div className={`rounded-xl border p-4 ${cls[color]}`}>
-      <Icon className="w-4 h-4 mb-2 opacity-80" />
-      <p className="text-xl font-syne font-bold text-white">{value}</p>
-      <p className="text-[10px] uppercase tracking-widest text-muted mt-1">{label}</p>
+    <div className="overflow-auto">
+      <div
+        className="grid gap-1 min-w-full"
+        style={{
+          gridTemplateColumns: `minmax(${minRowLabel}px, auto) repeat(${columns.length}, minmax(${minCell}px, 1fr))`,
+        }}
+      >
+        <div />
+        {columns.map((c) => (
+          <div key={`h-${c}`} className={`${fontCls} text-muted text-center pb-1 truncate`} title={c}>
+            {c.length > headerMaxLen ? c.slice(0, headerMaxLen - 1) + "…" : c}
+          </div>
+        ))}
+        {columns.map((row, i) => (
+          <Fragment key={`r-${row}`}>
+            <div className={`${fontCls} text-muted pr-2 flex items-center justify-end truncate`} title={row}>
+              {row.length > rowMaxLen ? row.slice(0, rowMaxLen - 1) + "…" : row}
+            </div>
+            {columns.map((col, j) => {
+              const r = m[i]?.[j] ?? 0;
+              const isDiag = i === j;
+              return (
+                <div
+                  key={`c-${i}-${j}`}
+                  className="aspect-square rounded flex items-center justify-center text-[10px] font-mono transition-transform hover:scale-110 hover:z-10 hover:ring-2 hover:ring-cyan/60"
+                  style={{
+                    background: isDiag ? "rgba(255,255,255,0.06)" : cellColor(r),
+                    color: Math.abs(r) > 0.5 ? "#ffffff" : "rgba(255,255,255,0.7)",
+                  }}
+                  title={`${row} × ${col}: r = ${r.toFixed(3)}`}
+                >
+                  {r.toFixed(2)}
+                </div>
+              );
+            })}
+          </Fragment>
+        ))}
+      </div>
     </div>
   );
+}
+
+function typeColor(t: string): string {
+  switch (t) {
+    case "number":
+    case "integer":
+    case "currency":
+    case "percent":
+      return "bg-cyan/15 text-cyan border border-cyan/30";
+    case "date":
+      return "bg-purple/15 text-purple border border-purple/30";
+    case "categorical":
+      return "bg-mint/15 text-mint border border-mint/30";
+    case "boolean":
+      return "bg-warning/15 text-warning border border-warning/30";
+    default:
+      return "bg-bgElevated text-muted border border-borderColor";
+  }
 }

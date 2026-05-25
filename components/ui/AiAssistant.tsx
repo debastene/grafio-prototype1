@@ -258,6 +258,14 @@ export default function AiAssistant({ context }: Props) {
         )}
       </div>
 
+      {/* Notice: chat unlimited di prototype, akan ada credit gate di langganan */}
+      <div className="px-5 py-2 border-b border-borderColor bg-cyan/5">
+        <p className="text-[10px] text-cyan/80 leading-relaxed">
+          <span className="font-semibold text-cyan">Tanya bebas — gratis tanpa batas</span>
+          <span className="text-muted"> selama masa prototype. Versi langganan nanti akan ada batas kredit per bulan.</span>
+        </p>
+      </div>
+
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
         {msgs.map((m, i) => (
           <div key={i} className={`flex gap-2.5 ${m.role === "user" ? "flex-row-reverse" : ""}`}>
