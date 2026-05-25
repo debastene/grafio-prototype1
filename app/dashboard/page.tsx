@@ -1208,17 +1208,16 @@ function DashboardContent() {
 
             {/* ACTION BAR */}
             <div className="flex items-center gap-3 flex-wrap">
-              <Button onClick={generatePdf} disabled={pdfLoading || mode !== "ai"}>
-                {pdfLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" /> Generating PDF…
-                  </>
-                ) : (
-                  <>
-                    <FileText className="w-4 h-4" />
-                    {mode === "ai" ? "Download PDF Report" : "PDF Report (perlu analisis)"}
-                  </>
-                )}
+              {/* PDF Report sementara di-nonaktifkan — desain belum layak untuk shareable
+                  report. Kode generator (lib/report/pdf.ts + generatePdf di atas) sengaja
+                  dibiarkan supaya bisa di-enable lagi setelah revisi besar berikutnya. */}
+              <Button
+                disabled
+                title="Fitur sedang direvisi — desain belum layak digunakan"
+                className="cursor-not-allowed"
+              >
+                <FileText className="w-4 h-4" />
+                Download PDF Report Feature is under development
               </Button>
 
               {/* Save / Update Project button */}

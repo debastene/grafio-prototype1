@@ -208,17 +208,15 @@ export default function ProjectDetail() {
                       <Sparkles className="w-3.5 h-3.5" /> Analisis Baru
                     </Button>
                   </Link>
+                  {/* PDF Report di-nonaktifkan sementara — desain sedang direvisi.
+                      onExportPdf handler tetap ada supaya gampang re-enable nanti. */}
                   <button
-                    onClick={onExportPdf}
-                    disabled={pdfLoading}
-                    className="px-3 py-2 rounded-md border border-borderColor text-white hover:border-cyan text-sm flex items-center gap-2 transition-colors disabled:opacity-60"
+                    disabled
+                    title="Fitur sedang direvisi — desain belum layak digunakan"
+                    className="px-3 py-2 rounded-md border border-borderColor text-muted text-sm flex items-center gap-2 opacity-60 cursor-not-allowed"
                   >
-                    {pdfLoading ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <FileText className="w-3.5 h-3.5" />
-                    )}
-                    {pdfLoading ? "Generating…" : "PDF Report"}
+                    <FileText className="w-3.5 h-3.5" />
+                    PDF Report (under development)
                   </button>
                   <button
                     onClick={onDelete}
