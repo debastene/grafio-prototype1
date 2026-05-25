@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo, useEffect, Fragment } from "react";
+import { useState, useMemo, useEffect, Fragment, Suspense } from "react";
 import { persistDashboard, loadDashboard, clearDashboard } from "@/lib/dashboard/persist";
 import Nav from "@/components/ui/Nav";
 import Footer from "@/components/ui/Footer";
@@ -37,7 +37,33 @@ const SPARK_COLORS = ["#00D4FF", "#00FFB3", "#FF6FB5", "#7B5EA7"];
 
 type Mode = "upload" | "demo" | "ai";
 
+/**
+ * Wrapper export — Suspense diperlukan karena DashboardContent pakai
+ * useSearchParams(). Tanpa ini, Next.js 14 production build GAGAL dengan
+ *   "useSearchParams() should be wrapped in a suspense boundary at page /dashboard"
+ * Build terakhir di Vercel error karena hal ini.
+ */
 export default function Dashboard() {
+  return (
+    <Suspense fallback={<DashboardSkeleton />}>
+      <DashboardContent />
+    </Suspense>
+  );
+}
+
+function DashboardSkeleton() {
+  return (
+    <main className="min-h-screen bg-bgDeep relative">
+      <Nav />
+      <div className="relative max-w-7xl mx-auto px-6 py-10">
+        <div className="h-8 w-48 bg-bgSurface rounded animate-pulse mb-3" />
+        <div className="h-4 w-72 bg-bgSurface rounded animate-pulse" />
+      </div>
+    </main>
+  );
+}
+
+function DashboardContent() {
   const searchParams = useSearchParams();
   /**
    * Update mode: kalau user klik "Update Project" di project detail,
