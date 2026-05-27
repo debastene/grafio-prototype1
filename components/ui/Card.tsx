@@ -27,15 +27,20 @@ export default function Card({
   const base = glass
     ? "glass rounded-xl p-6 relative shadow-soft"
     : "bg-bgSurface border border-borderColor rounded-xl p-6 relative shadow-soft";
+  // Cursor pointer hanya kalau ada onClick — hover saja tidak menjadikan
+  // card interaktif. Per rekomendasi UI/UX Pro Max "cursor-pointer:
+  // add to all clickable elements, not just hover".
   const hoverCls = hover
-    ? "transition-all duration-300 ease-out hover:border-cyan/50 hover:shadow-glow hover:-translate-y-1 cursor-pointer"
+    ? "transition-all duration-400 ease-glide hover:border-cyan/50 hover:shadow-glow hover:-translate-y-1"
     : "";
+  const clickCls = onClick ? "cursor-pointer" : "";
   return (
     <div
       id={id}
-      className={`${base} ${hoverCls} ${className}`}
+      className={`${base} ${hoverCls} ${clickCls} ${className}`}
       onClick={onClick}
       role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
     >
       {children}
     </div>

@@ -73,19 +73,22 @@ const TYPE_LABEL: Record<string, string> = {
 
 export default function Changelog() {
   return (
-    <main className="min-h-screen bg-bgDeep relative">
+    <main className="min-h-screen bg-bgDeep relative overflow-x-hidden">
       <Nav />
       <div className="absolute inset-0 grid-bg pointer-events-none opacity-30" />
-      <div className="relative max-w-4xl mx-auto px-6 py-20">
+      <div className="absolute inset-0 bg-grad-hero opacity-50 pointer-events-none" />
+      <div className="relative max-w-4xl mx-auto px-6 py-24">
+        <div className="reveal">
         <SectionHeader
           eyebrow="Changelog"
           title="Apa yang baru di Grafio"
           description="Update fitur, perbaikan, dan optimasi — biasanya rilis tiap 2-4 minggu."
         />
+        </div>
 
-        <div className="space-y-8">
+        <div className="space-y-10">
           {releases.map((r) => (
-            <div key={r.version}>
+            <div key={r.version} className="reveal">
               <div className="flex items-baseline justify-between gap-3 flex-wrap mb-3">
                 <div className="flex items-baseline gap-3">
                   <h2 className="font-syne font-bold text-white text-2xl">{r.version}</h2>

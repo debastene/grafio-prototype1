@@ -71,21 +71,24 @@ const responsibleDisclosure = [
 
 export default function Security() {
   return (
-    <main className="min-h-screen bg-bgDeep relative">
+    <main className="min-h-screen bg-bgDeep relative overflow-x-hidden">
       <Nav />
       <div className="absolute inset-0 grid-bg pointer-events-none opacity-30" />
-      <div className="relative max-w-5xl mx-auto px-6 py-20">
+      <div className="absolute inset-0 bg-grad-hero opacity-50 pointer-events-none" />
+      <div className="relative max-w-5xl mx-auto px-6 py-24">
+        <div className="reveal">
         <SectionHeader
           eyebrow="Security"
           title="Keamanan adalah Fondasi"
           description="Bagaimana kami melindungi data, akun, dan infrastruktur kamu — dengan rincian teknis, bukan janji marketing."
         />
+        </div>
 
         <div className="grid md:grid-cols-2 gap-5 mb-12">
           {pillars.map((p) => {
             const Icon = p.icon;
             return (
-              <Card key={p.title}>
+              <Card key={p.title} hover className="reveal">
                 <div className="flex items-start gap-3 mb-3">
                   <div className="w-10 h-10 rounded-lg bg-cyan/15 border border-cyan/30 flex items-center justify-center flex-shrink-0">
                     <Icon className="w-5 h-5 text-cyan" />

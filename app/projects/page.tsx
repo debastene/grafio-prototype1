@@ -157,19 +157,22 @@ export default function ProjectsPage() {
   };
 
   return (
-    <main className="min-h-screen bg-bgDeep relative">
+    <main className="min-h-screen bg-bgDeep relative overflow-x-hidden">
       <Nav />
       <div className="absolute inset-0 grid-bg pointer-events-none opacity-30" />
+      <div className="absolute inset-0 bg-grad-hero opacity-40 pointer-events-none" />
 
-      <div className="relative max-w-7xl mx-auto px-6 py-10">
+      <div className="relative max-w-7xl mx-auto px-6 py-12">
         {/* HEADER */}
-        <div className="flex items-end justify-between gap-4 mb-6 flex-wrap">
+        <div className="flex items-end justify-between gap-4 mb-8 flex-wrap reveal">
           <div>
-            <p className="text-xs uppercase tracking-[0.25em] text-cyan mb-2">Project History</p>
-            <h1 className="text-3xl md:text-4xl font-syne font-bold text-white">
+            <p className="text-[11px] font-mono uppercase tracking-[0.25em] text-cyan mb-3 inline-block border border-cyan/30 bg-cyan/5 px-3 py-1.5 rounded-full">
+              Project History
+            </p>
+            <h1 className="text-3xl md:text-5xl font-syne font-bold text-white leading-tight">
               Workspace Kamu
             </h1>
-            <p className="text-muted text-sm mt-1">
+            <p className="text-muted text-sm md:text-base mt-2 leading-relaxed">
               {user
                 ? `Halo ${user.name.split(" ")[0]}, ini semua project analisis kamu — search, filter, atau buka kembali.`
                 : "Login untuk lihat project tersimpan"}
@@ -233,14 +236,14 @@ export default function ProjectsPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Cari project, file, atau domain…"
-                className="w-full pl-10 pr-3 py-2.5 bg-bgSurface border border-borderColor rounded-md text-sm text-white placeholder:text-muted/60 focus:outline-none focus:border-cyan/50"
+                className="w-full pl-10 pr-3 py-2.5 bg-bgSurface/70 backdrop-blur-sm border border-borderColor rounded-md text-sm text-white placeholder:text-muted/60 focus:outline-none focus:border-cyan/55 focus:shadow-glow transition-all duration-250 ease-glide"
               />
             </div>
 
             <select
               value={sort}
               onChange={(e) => setSort(e.target.value as SortKey)}
-              className="px-3 py-2.5 bg-bgSurface border border-borderColor rounded-md text-sm text-white focus:outline-none focus:border-cyan/50 cursor-pointer"
+              className="px-3 py-2.5 bg-bgSurface/70 backdrop-blur-sm border border-borderColor rounded-md text-sm text-white focus:outline-none focus:border-cyan/55 cursor-pointer transition-all duration-250 ease-glide"
             >
               <option value="newest">Terbaru</option>
               <option value="oldest">Terlama</option>

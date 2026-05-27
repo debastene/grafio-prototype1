@@ -32,26 +32,28 @@ export default function Login() {
   };
 
   return (
-    <main className="min-h-screen bg-bgDeep flex items-center justify-center px-6 relative overflow-hidden">
+    <main className="min-h-screen bg-bgDeep flex items-center justify-center px-6 py-12 relative overflow-hidden">
       <div className="absolute inset-0 bg-grad-hero pointer-events-none" />
-      <div className="absolute inset-0 grid-bg pointer-events-none" />
+      <div className="absolute inset-0 grid-bg pointer-events-none opacity-60" />
+      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-cyan/15 blur-3xl rounded-full pointer-events-none animate-float" />
+      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-violet/15 blur-3xl rounded-full pointer-events-none animate-float" style={{ animationDelay: "2s" }} />
 
-      <div className="relative w-full max-w-md">
+      <div className="relative w-full max-w-md reveal">
         <Link href="/" className="flex items-center justify-center gap-2.5 mb-8 group">
-          <Logo className="w-10 h-10 text-silver group-hover:text-cyan transition-colors" />
-          <span className="font-syne font-extrabold text-2xl tracking-wide text-white">
+          <Logo className="w-10 h-10 group-hover:scale-105 transition-transform duration-400 ease-glide" />
+          <span className="font-syne font-extrabold text-2xl tracking-wide text-white group-hover:text-gradient transition-all duration-400 ease-glide">
             GRAFIO
           </span>
         </Link>
 
-        <div className="glass rounded-2xl p-8 shadow-soft">
+        <div className="glass-strong rounded-2xl p-8 shadow-elev-lg">
           <h1 className="text-2xl font-syne font-bold text-white mb-1">Selamat Datang Kembali</h1>
           <p className="text-sm text-muted mb-6">Login ke workspace Anda.</p>
 
           <div className="grid grid-cols-2 gap-3 mb-5">
             <button
               onClick={() => alert("Google OAuth akan tersedia di production. Untuk sementara, daftar via /signup.")}
-              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-md border border-borderColor bg-bgSurface text-white text-sm hover:border-cyan/50 transition-colors"
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-md border border-borderColor bg-bgSurface/60 backdrop-blur-sm text-white text-sm hover:border-cyan/55 hover:bg-cyan/5 transition-all duration-300 ease-glide"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -63,7 +65,7 @@ export default function Login() {
             </button>
             <button
               onClick={() => alert("GitHub OAuth akan tersedia di production. Untuk sementara, daftar via /signup.")}
-              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-md border border-borderColor bg-bgSurface text-white text-sm hover:border-cyan/50 transition-colors"
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-md border border-borderColor bg-bgSurface/60 backdrop-blur-sm text-white text-sm hover:border-cyan/55 hover:bg-cyan/5 transition-all duration-300 ease-glide"
             >
               <Github className="w-4 h-4" /> GitHub
             </button>
@@ -85,7 +87,7 @@ export default function Login() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="kamu@email.com"
-                  className="w-full pl-10 pr-3 py-2.5 bg-bgSurface border border-borderColor rounded-md text-sm text-white focus:outline-none focus:border-cyan/50 placeholder:text-muted/60"
+                  className="w-full pl-10 pr-3 py-2.5 bg-bgSurface/70 backdrop-blur-sm border border-borderColor rounded-md text-sm text-white focus:outline-none focus:border-cyan/55 focus:bg-bgSurface focus:shadow-glow transition-all duration-250 ease-glide placeholder:text-muted/60"
                 />
               </div>
             </label>
@@ -99,7 +101,7 @@ export default function Login() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-10 pr-3 py-2.5 bg-bgSurface border border-borderColor rounded-md text-sm text-white focus:outline-none focus:border-cyan/50 placeholder:text-muted/60"
+                  className="w-full pl-10 pr-3 py-2.5 bg-bgSurface/70 backdrop-blur-sm border border-borderColor rounded-md text-sm text-white focus:outline-none focus:border-cyan/55 focus:bg-bgSurface focus:shadow-glow transition-all duration-250 ease-glide placeholder:text-muted/60"
                 />
               </div>
             </label>
@@ -118,11 +120,11 @@ export default function Login() {
 
           <p className="text-center text-sm text-muted mt-6">
             Belum punya akun?{" "}
-            <Link href="/signup" className="text-cyan hover:underline">
+            <Link href="/signup" className="text-cyan link-underline">
               Daftar gratis
             </Link>
             {" · "}
-            <Link href="/trial" className="text-mint hover:underline">
+            <Link href="/trial" className="text-mint link-underline">
               Free Trial 7 hari
             </Link>
           </p>

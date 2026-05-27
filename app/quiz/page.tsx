@@ -106,7 +106,7 @@ export default function QuizListPage() {
   const weekLabel = formatWeekRange(thisWeekStartWIB());
 
   return (
-    <main className="min-h-screen bg-bgDeep relative">
+    <main className="min-h-screen bg-bgDeep relative overflow-x-hidden">
       <Nav />
       <div className="absolute inset-0 grid-bg pointer-events-none opacity-50" />
       <div className="relative max-w-6xl mx-auto px-6 py-10">

@@ -74,7 +74,7 @@ export default function ChartFrame({
   // sudah di base state, no animation needed.
   const interactive = canDiveDeeper && !modalOpen;
   const cardClass = interactive
-    ? "group relative bg-bgSurface border border-borderColor rounded-xl overflow-hidden shadow-soft transition-all duration-300 hover:border-cyan/60 hover:shadow-glow hover:-translate-y-1 hover:scale-[1.01]"
+    ? "group relative bg-bgSurface border border-borderColor rounded-xl overflow-hidden shadow-soft transition-all duration-400 ease-glide hover:border-cyan/60 hover:shadow-glow hover:-translate-y-1"
     : "relative bg-bgSurface border border-borderColor rounded-xl overflow-hidden shadow-soft";
 
   return (
@@ -148,7 +148,7 @@ export default function ChartFrame({
           }}
           aria-label={`Pelajari lebih dalam tentang ${name}`}
           title="Pelajari lebih dalam"
-          className="absolute top-3 right-3 z-20 w-7 h-7 rounded-md bg-bgElevated/80 border border-borderColor text-muted hover:bg-cyan/15 hover:border-cyan hover:text-cyan transition-colors flex items-center justify-center backdrop-blur-sm"
+          className="absolute top-3 right-3 z-20 w-7 h-7 rounded-md bg-bgElevated/80 border border-borderColor text-muted hover:bg-cyan/15 hover:border-cyan hover:text-cyan hover:shadow-glow transition-all duration-300 ease-glide flex items-center justify-center backdrop-blur-sm"
         >
           <Maximize2 className="w-3.5 h-3.5" />
         </button>

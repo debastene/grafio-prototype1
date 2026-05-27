@@ -55,19 +55,21 @@ export default function TrialPage() {
   };
 
   return (
-    <main className="min-h-screen bg-bgDeep flex items-center justify-center px-6 py-10 relative overflow-hidden">
+    <main className="min-h-screen bg-bgDeep flex items-center justify-center px-6 py-12 relative overflow-hidden">
       <div className="absolute inset-0 bg-grad-hero pointer-events-none" />
-      <div className="absolute inset-0 grid-bg pointer-events-none" />
+      <div className="absolute inset-0 grid-bg pointer-events-none opacity-60" />
+      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-mint/15 blur-3xl rounded-full pointer-events-none animate-float" />
+      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-cyan/15 blur-3xl rounded-full pointer-events-none animate-float" style={{ animationDelay: "2s" }} />
 
-      <div className="relative w-full max-w-md">
+      <div className="relative w-full max-w-md reveal">
         <Link href="/" className="flex items-center justify-center gap-2.5 mb-8 group">
-          <Logo className="w-10 h-10 text-silver group-hover:text-cyan transition-colors" />
-          <span className="font-syne font-extrabold text-2xl tracking-wide text-white">
+          <Logo className="w-10 h-10 group-hover:scale-105 transition-transform duration-400 ease-glide" />
+          <span className="font-syne font-extrabold text-2xl tracking-wide text-white group-hover:text-gradient transition-all duration-400 ease-glide">
             GRAFIO
           </span>
         </Link>
 
-        <div className="glass rounded-2xl p-8 shadow-soft">
+        <div className="glass-strong rounded-2xl p-8 shadow-elev-lg">
           <div className="flex items-center gap-2 mb-1">
             <Gift className="w-5 h-5 text-mint" />
             <h1 className="text-2xl font-syne font-bold text-white">Free Trial — 7 Hari</h1>
@@ -157,7 +159,7 @@ function Field({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className="w-full pl-10 pr-3 py-2.5 bg-bgSurface border border-borderColor rounded-md text-sm text-white focus:outline-none focus:border-cyan/50 placeholder:text-muted/60"
+          className="w-full pl-10 pr-3 py-2.5 bg-bgSurface/70 backdrop-blur-sm border border-borderColor rounded-md text-sm text-white focus:outline-none focus:border-cyan/55 focus:bg-bgSurface focus:shadow-glow transition-all duration-250 ease-glide placeholder:text-muted/60"
         />
       </div>
     </label>

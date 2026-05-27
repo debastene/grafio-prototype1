@@ -5,9 +5,12 @@ import Card from "@/components/ui/Card";
 import FaqAccordion from "@/components/ui/FaqAccordion";
 import Button from "@/components/ui/Button";
 import SectionHeader from "@/components/ui/SectionHeader";
+import Reveal from "@/components/ui/motion/Reveal";
+import { Stagger, StaggerItem } from "@/components/ui/motion/Stagger";
+import MagneticButton from "@/components/ui/motion/MagneticButton";
 import Link from "next/link";
 import {
-  Check, Crown, Rocket, Sparkles, GraduationCap, Zap, Gift, Clock,
+  Check, Crown, Rocket, Sparkles, GraduationCap, Zap, Clock,
 } from "lucide-react";
 
 type Tier = {
@@ -108,18 +111,21 @@ const tiers: Tier[] = [
 
 export default function Pricing() {
   return (
-    <main className="min-h-screen bg-bgDeep relative">
+    <main className="min-h-screen bg-bgDeep relative overflow-x-hidden">
       <Nav />
       <div className="absolute inset-0 bg-grad-hero pointer-events-none" />
-      <div className="relative max-w-7xl mx-auto px-6 py-20">
-        <SectionHeader
-          eyebrow="Pricing"
-          title="Plan Sesuai Kebutuhan Anda"
-          description="Sekarang semua fitur Grafio bisa dipakai GRATIS sebagai pratinjau. Paket berbayar akan segera tersedia."
-        />
+      <div className="relative max-w-7xl mx-auto px-6 py-24">
+        <Reveal>
+          <SectionHeader
+            eyebrow="Pricing"
+            title="Plan Sesuai Kebutuhan Anda"
+            description="Sekarang semua fitur Grafio bisa dipakai GRATIS sebagai pratinjau. Paket berbayar akan segera tersedia."
+          />
+        </Reveal>
 
         {/* GLOBAL COMING SOON BANNER */}
-        <div className="mb-12 max-w-5xl mx-auto">
+        <Reveal delay={0.05}>
+        <div className="mb-14 max-w-5xl mx-auto">
           <div className="relative glass rounded-2xl p-6 md:p-7 overflow-hidden border border-cyan/20">
             <div className="absolute inset-0 bg-grad-hero opacity-40 pointer-events-none" />
             <div className="absolute -top-12 -right-12 w-40 h-40 bg-cyan/20 blur-3xl rounded-full pointer-events-none" />
@@ -142,24 +148,27 @@ export default function Pricing() {
                   early users yang membantu kami iterasi produk.
                 </p>
               </div>
-              <Link href="/dashboard">
-                <Button size="lg">
-                  <Sparkles className="w-4 h-4" /> Coba Sekarang Gratis
-                </Button>
-              </Link>
+              <MagneticButton strength={0.2}>
+                <Link href="/dashboard">
+                  <Button size="lg">
+                    <Sparkles className="w-4 h-4" /> Coba Sekarang Gratis
+                  </Button>
+                </Link>
+              </MagneticButton>
             </div>
           </div>
         </div>
+        </Reveal>
 
         {/* TIERS */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
+        <Stagger className="grid md:grid-cols-2 lg:grid-cols-4 gap-5" gap={0.08}>
           {tiers.map((t) => (
-            <div
+            <StaggerItem
               key={t.name}
-              className={`relative rounded-2xl p-6 transition-all duration-300 flex flex-col ${
+              className={`relative rounded-2xl p-6 transition-all duration-400 ease-glide flex flex-col hover-lift ${
                 t.highlight
                   ? "border-2 border-cyan/60 bg-gradient-to-b from-cyan/8 to-transparent shadow-glow"
-                  : "border border-borderColor bg-bgSurface hover:border-cyan/40"
+                  : "border border-borderColor bg-bgSurface hover:border-cyan/45"
               } ${t.comingSoon ? "opacity-90" : ""}`}
             >
               {t.badge && (
@@ -220,12 +229,13 @@ export default function Pricing() {
                   </Button>
                 </Link>
               )}
-            </div>
+            </StaggerItem>
           ))}
-        </div>
+        </Stagger>
 
         {/* TOKEN ADD-ON — locked until billing ready */}
-        <div className="mt-16 max-w-3xl mx-auto">
+        <Reveal delay={0.1}>
+        <div className="mt-20 max-w-3xl mx-auto">
           <Card glass>
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-lg bg-purple/15 border border-purple/30 flex items-center justify-center flex-shrink-0">
@@ -261,8 +271,11 @@ export default function Pricing() {
             </div>
           </Card>
         </div>
+        </Reveal>
 
-        <FaqAccordion />
+        <Reveal>
+          <FaqAccordion />
+        </Reveal>
       </div>
       <Footer />
     </main>

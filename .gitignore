@@ -45,9 +45,8 @@ desktop.ini
 Thumbs.db
 *.pem
 
-# Claude Code artifacts
-.claude/worktrees/
-.claude/projects/
+# Claude Code artifacts (per-user local config & skills, jangan share)
+.claude/
 
 # Test data (jangan upload dataset asli ke repo public)
 *.csv

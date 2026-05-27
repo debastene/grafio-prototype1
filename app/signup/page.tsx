@@ -6,6 +6,7 @@ import Logo from "@/components/ui/Logo";
 import Button from "@/components/ui/Button";
 import {
   Mail, Lock, User, ArrowRight, Check, Building2, Hash, AlertTriangle, Sparkles,
+  Gift, GraduationCap, Rocket, Crown,
 } from "lucide-react";
 import { signup, Plan } from "@/lib/auth/storage";
 
@@ -66,28 +67,32 @@ function SignupForm() {
     }
   };
 
-  const planMeta: Record<Plan, { label: string; price: string; emoji: string }> = {
-    free: { label: "Free", price: "Rp 0/bulan", emoji: "✨" },
-    trial: { label: "Free Trial", price: "7 hari gratis", emoji: "🎁" },
-    student: { label: "Student", price: "Rp 49.000/bulan", emoji: "🎓" },
-    pro: { label: "Pro", price: "Rp 159.000/bulan", emoji: "🚀" },
-    custom: { label: "Custom", price: "Hubungi sales", emoji: "👑" },
+  // Lucide icons (bukan emoji) — sesuai rekomendasi skill UI/UX:
+  // "no-emoji-icons: Use SVG icons, not emojis". Tetap satu sumber icon set.
+  const planMeta: Record<Plan, { label: string; price: string; Icon: any }> = {
+    free: { label: "Free", price: "Rp 0/bulan", Icon: Sparkles },
+    trial: { label: "Free Trial", price: "7 hari gratis", Icon: Gift },
+    student: { label: "Student", price: "Rp 49.000/bulan", Icon: GraduationCap },
+    pro: { label: "Pro", price: "Rp 159.000/bulan", Icon: Rocket },
+    custom: { label: "Custom", price: "Hubungi sales", Icon: Crown },
   };
 
   return (
-    <main className="min-h-screen bg-bgDeep flex items-center justify-center px-6 py-10 relative overflow-hidden">
+    <main className="min-h-screen bg-bgDeep flex items-center justify-center px-6 py-12 relative overflow-hidden">
       <div className="absolute inset-0 bg-grad-hero pointer-events-none" />
-      <div className="absolute inset-0 grid-bg pointer-events-none" />
+      <div className="absolute inset-0 grid-bg pointer-events-none opacity-60" />
+      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-cyan/15 blur-3xl rounded-full pointer-events-none animate-float" />
+      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-violet/15 blur-3xl rounded-full pointer-events-none animate-float" style={{ animationDelay: "2s" }} />
 
-      <div className="relative w-full max-w-md">
+      <div className="relative w-full max-w-md reveal">
         <Link href="/" className="flex items-center justify-center gap-2.5 mb-8 group">
-          <Logo className="w-10 h-10 text-silver group-hover:text-cyan transition-colors" />
-          <span className="font-syne font-extrabold text-2xl tracking-wide text-white">
+          <Logo className="w-10 h-10 group-hover:scale-105 transition-transform duration-400 ease-glide" />
+          <span className="font-syne font-extrabold text-2xl tracking-wide text-white group-hover:text-gradient transition-all duration-400 ease-glide">
             GRAFIO
           </span>
         </Link>
 
-        <div className="glass rounded-2xl p-8 shadow-soft">
+        <div className="glass-strong rounded-2xl p-8 shadow-elev-lg">
           <h1 className="text-2xl font-syne font-bold text-white mb-1">Buat Akun Grafio</h1>
           <p className="text-sm text-muted mb-5">
             Pilih plan, lengkapi data, mulai analisis dalam 30 detik.
@@ -95,22 +100,27 @@ function SignupForm() {
 
           {/* Plan picker */}
           <div className="grid grid-cols-3 gap-2 mb-5">
-            {(["free", "student", "pro"] as Plan[]).map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => setPlan(p)}
-                className={`text-left rounded-md border p-2.5 transition-all ${
-                  plan === p
-                    ? "border-cyan bg-cyan/10"
-                    : "border-borderColor bg-bgSurface hover:border-cyan/50"
-                }`}
-              >
-                <p className="text-xs">{planMeta[p].emoji}</p>
-                <p className="text-[11px] font-syne font-bold text-white">{planMeta[p].label}</p>
-                <p className="text-[10px] text-muted">{planMeta[p].price}</p>
-              </button>
-            ))}
+            {(["free", "student", "pro"] as Plan[]).map((p) => {
+              const Icon = planMeta[p].Icon;
+              const active = plan === p;
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setPlan(p)}
+                  className={`cursor-pointer text-left rounded-md border p-2.5 transition-all duration-300 ease-glide ${
+                    active
+                      ? "border-cyan bg-cyan/10 shadow-glow"
+                      : "border-borderColor bg-bgSurface/60 backdrop-blur-sm hover:border-cyan/50 hover:bg-cyan/5"
+                  }`}
+                  aria-pressed={active}
+                >
+                  <Icon className={`w-3.5 h-3.5 mb-1 ${active ? "text-cyan" : "text-muted"}`} />
+                  <p className="text-[11px] font-syne font-bold text-white">{planMeta[p].label}</p>
+                  <p className="text-[10px] text-muted">{planMeta[p].price}</p>
+                </button>
+              );
+            })}
           </div>
           {plan === "custom" && (
             <p className="text-xs text-muted bg-bgSurface border border-borderColor rounded-md p-3 mb-4">
@@ -225,7 +235,7 @@ function Field({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className="w-full pl-10 pr-3 py-2.5 bg-bgSurface border border-borderColor rounded-md text-sm text-white focus:outline-none focus:border-cyan/50 placeholder:text-muted/60"
+          className="w-full pl-10 pr-3 py-2.5 bg-bgSurface/70 backdrop-blur-sm border border-borderColor rounded-md text-sm text-white focus:outline-none focus:border-cyan/55 focus:bg-bgSurface focus:shadow-glow transition-all duration-250 ease-glide placeholder:text-muted/60"
         />
       </div>
     </label>

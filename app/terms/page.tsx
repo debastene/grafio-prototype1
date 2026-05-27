@@ -94,17 +94,20 @@ const sections = [
 
 export default function Terms() {
   return (
-    <main className="min-h-screen bg-bgDeep relative">
+    <main className="min-h-screen bg-bgDeep relative overflow-x-hidden">
       <Nav />
       <div className="absolute inset-0 grid-bg pointer-events-none opacity-30" />
-      <div className="relative max-w-4xl mx-auto px-6 py-20">
+      <div className="absolute inset-0 bg-grad-hero opacity-50 pointer-events-none" />
+      <div className="relative max-w-4xl mx-auto px-6 py-24">
+        <div className="reveal">
         <SectionHeader
           eyebrow="Legal"
           title="Terms of Service"
           description="Berlaku efektif 1 Januari 2026 · Versi 2.1 · Dengan menggunakan Grafio, kamu setuju dengan syarat di bawah."
         />
+        </div>
 
-        <Card className="mb-6">
+        <Card className="mb-6 reveal" hover>
           <p className="text-sm text-white leading-relaxed">
             <strong className="text-cyan">Versi pendek:</strong> Pakai Grafio untuk hal baik, jangan
             upload data yang bukan haknya, bayar kalau pakai paket pro, dan kamu bisa cancel kapan saja.

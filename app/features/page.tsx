@@ -1,3 +1,4 @@
+"use client";
 import Link from "next/link";
 import Nav from "@/components/ui/Nav";
 import Footer from "@/components/ui/Footer";
@@ -5,10 +6,13 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import SectionHeader from "@/components/ui/SectionHeader";
 import LineAreaChart from "@/components/ui/charts/LineAreaChart";
+import Reveal from "@/components/ui/motion/Reveal";
+import { Stagger, StaggerItem } from "@/components/ui/motion/Stagger";
+import MagneticButton from "@/components/ui/motion/MagneticButton";
 import {
   Brain, MessageSquare, Wand2, Workflow, Eye, ShieldCheck,
-  FileDown, Layers, Database, Zap, Bell, Users, ArrowRight,
-  Activity, Lightbulb, Heart, Sparkles, FileText, ChevronRight,
+  FileDown, Layers, Database, Zap, ArrowRight,
+  Activity, Lightbulb, Heart, Sparkles,
   CheckCircle2, MessageCircle,
 } from "lucide-react";
 
@@ -127,70 +131,80 @@ export default function Features() {
       <Nav />
 
       {/* Hero */}
-      <section className="relative pt-20 pb-16">
+      <section className="relative pt-24 pb-20 md:pt-32 md:pb-24">
         <div className="absolute inset-0 bg-grad-hero pointer-events-none" />
+        <div className="absolute inset-0 grid-bg pointer-events-none opacity-50" />
         <div className="relative max-w-5xl mx-auto px-6 text-center">
-          <p className="inline-block text-xs font-medium uppercase tracking-[0.25em] text-cyan border border-cyan/30 bg-cyan/5 px-3 py-1.5 rounded-full mb-6">
-            Cara Grafio Bekerja
-          </p>
-          <h1 className="text-4xl md:text-6xl font-syne font-extrabold text-white leading-[1.05]">
-            Bukan cuma chart cantik. <br />
-            <span className="text-gradient">Analisis yang ngerti datamu.</span>
-          </h1>
-          <p className="text-muted max-w-2xl mx-auto mt-6 text-lg leading-relaxed">
-            Grafio dirancang untuk satu tujuan: kasih kamu pengalaman analisis data yang
-            sebenarnya — AI yang baca konteks, jelasin pakai bahasa manusia, dan kasih kesimpulan
-            dengan sudut pandang. Bukan tools generik.
-          </p>
+          <Reveal>
+            <p className="inline-block text-[11px] font-mono uppercase tracking-[0.25em] text-cyan border border-cyan/30 bg-cyan/5 px-3 py-1.5 rounded-full mb-6">
+              Cara Grafio Bekerja
+            </p>
+          </Reveal>
+          <Reveal delay={0.08}>
+            <h1 className="text-4xl md:text-7xl font-syne font-extrabold text-white leading-[1.02]">
+              Bukan cuma chart cantik. <br />
+              <span className="text-gradient">Analisis yang ngerti datamu.</span>
+            </h1>
+          </Reveal>
+          <Reveal delay={0.18}>
+            <p className="text-muted max-w-2xl mx-auto mt-7 text-lg md:text-xl leading-relaxed">
+              Grafio dirancang untuk satu tujuan: kasih kamu pengalaman analisis data yang
+              sebenarnya — AI yang baca konteks, jelasin pakai bahasa manusia, dan kasih kesimpulan
+              dengan sudut pandang. Bukan tools generik.
+            </p>
+          </Reveal>
         </div>
       </section>
 
       {/* ===== 4-STEP FLOW SHOWCASE ===== */}
-      <section className="max-w-7xl mx-auto px-6 py-12">
-        <SectionHeader
-          eyebrow="Alur Unik Grafio"
-          title="Dari Upload sampai Kesimpulan, 4 Langkah Saja"
-          description="Setiap langkah punya peran. Kamu yang putuskan, AI yang eksekusi — kombinasi yang membuat hasil analisis bermakna, bukan asal jadi."
-        />
+      <section className="max-w-7xl mx-auto px-6 py-16">
+        <Reveal>
+          <SectionHeader
+            eyebrow="Alur Unik Grafio"
+            title="Dari Upload sampai Kesimpulan, 4 Langkah Saja"
+            description="Setiap langkah punya peran. Kamu yang putuskan, AI yang eksekusi — kombinasi yang membuat hasil analisis bermakna, bukan asal jadi."
+          />
+        </Reveal>
 
-        <div className="space-y-6">
+        <Stagger className="space-y-6" gap={0.12}>
           {flowSteps.map((step, i) => {
             const a = ACCENT_CLASS[step.accent];
             const reverse = i % 2 === 1;
             return (
-              <div
-                key={step.num}
-                className={`glass rounded-2xl p-7 md:p-9 grid md:grid-cols-12 gap-6 items-center ${a.border} border`}
-              >
-                {/* Number + icon block */}
-                <div className={`md:col-span-3 ${reverse ? "md:order-2" : ""}`}>
-                  <div className="flex items-center gap-4">
-                    <div className={`relative w-20 h-20 rounded-2xl ${a.bg} border ${a.border} flex items-center justify-center`}>
-                      <step.icon className={`w-8 h-8 ${a.text}`} />
-                      <span className={`absolute -top-2 -right-2 text-[10px] font-mono font-bold ${a.text} ${a.bg} border ${a.border} rounded-full w-8 h-8 flex items-center justify-center`}>
-                        {step.num}
-                      </span>
+              <StaggerItem key={step.num}>
+                <div
+                  id={`flow-${step.num}`}
+                  className={`glass rounded-2xl p-7 md:p-9 grid md:grid-cols-12 gap-6 items-center ${a.border} border hover-lift transition-all duration-400 ease-glide`}
+                >
+                  <div className={`md:col-span-3 ${reverse ? "md:order-2" : ""}`}>
+                    <div className="flex items-center gap-4">
+                      <div className={`relative w-20 h-20 rounded-2xl ${a.bg} border ${a.border} flex items-center justify-center`}>
+                        <step.icon className={`w-8 h-8 ${a.text}`} />
+                        <span className={`absolute -top-2 -right-2 text-[10px] font-mono font-bold ${a.text} ${a.bg} border ${a.border} rounded-full w-8 h-8 flex items-center justify-center`}>
+                          {step.num}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Content */}
-                <div className={`md:col-span-9 ${reverse ? "md:order-1" : ""}`}>
-                  <h3 className="font-syne font-bold text-white text-2xl mb-2">{step.title}</h3>
-                  <p className={`text-base ${a.text} mb-3 font-medium leading-relaxed`}>
-                    {step.blurb}
-                  </p>
-                  <p className="text-muted text-sm leading-relaxed">{step.detail}</p>
+                  <div className={`md:col-span-9 ${reverse ? "md:order-1" : ""}`}>
+                    <h3 className="font-syne font-bold text-white text-2xl mb-2">{step.title}</h3>
+                    <p className={`text-base ${a.text} mb-3 font-medium leading-relaxed`}>
+                      {step.blurb}
+                    </p>
+                    <p className="text-muted text-sm leading-relaxed">{step.detail}</p>
+                  </div>
                 </div>
-              </div>
+              </StaggerItem>
             );
           })}
-        </div>
+        </Stagger>
       </section>
 
       {/* ===== TWO-COL HIGHLIGHT ===== */}
-      <section className="max-w-7xl mx-auto px-6 py-12 grid lg:grid-cols-2 gap-6 items-stretch">
-        <Card glass className="!p-8">
+      <Stagger as="section" className="max-w-7xl mx-auto px-6 py-16 grid lg:grid-cols-2 gap-6 items-stretch" gap={0.1}>
+        <StaggerItem>
+        <Card glass className="!p-8 h-full">
           <p className="text-xs uppercase tracking-widest text-cyan mb-2">Time-Series Engine</p>
           <h3 className="text-2xl font-syne font-bold text-white mb-3">Tren Otomatis + Forecast</h3>
           <p className="text-muted mb-5 text-sm leading-relaxed">
@@ -207,7 +221,9 @@ export default function Features() {
             ]}
           />
         </Card>
-        <Card glass className="!p-8 flex flex-col">
+        </StaggerItem>
+        <StaggerItem>
+        <Card glass className="!p-8 flex flex-col h-full">
           <p className="text-xs uppercase tracking-widest text-purple mb-2">Kesimpulan AI</p>
           <h3 className="text-2xl font-syne font-bold text-white mb-3">Sudut Pandang, Bukan Ringkasan</h3>
           <p className="text-muted mb-5 text-sm leading-relaxed">
@@ -226,33 +242,36 @@ export default function Features() {
             </p>
           </div>
         </Card>
-      </section>
+        </StaggerItem>
+      </Stagger>
 
       {/* ===== UNIQUE FEATURES GRID ===== */}
-      <section className="max-w-7xl mx-auto px-6 py-16">
-        <SectionHeader
-          eyebrow="Yang Bikin Beda"
-          title="Pengalaman Analisis yang Sebenarnya"
-          description="Setiap fitur dirancang supaya kamu bukan cuma dapat chart, tapi paham datamu — bahkan kalau kamu bukan data scientist."
-        />
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+      <section className="max-w-7xl mx-auto px-6 py-20">
+        <Reveal>
+          <SectionHeader
+            eyebrow="Yang Bikin Beda"
+            title="Pengalaman Analisis yang Sebenarnya"
+            description="Setiap fitur dirancang supaya kamu bukan cuma dapat chart, tapi paham datamu — bahkan kalau kamu bukan data scientist."
+          />
+        </Reveal>
+        <Stagger className="grid md:grid-cols-2 lg:grid-cols-3 gap-5" gap={0.06}>
           {uniqueFeatures.map((f, i) => (
-            <div
-              key={i}
-              className="glass rounded-xl p-6 hover:border-cyan/40 hover:-translate-y-1 transition-all duration-300 group"
-            >
-              <div className="w-11 h-11 rounded-lg bg-cyan/10 border border-cyan/30 flex items-center justify-center mb-4 group-hover:bg-cyan transition-colors">
-                <f.icon className="w-5 h-5 text-cyan group-hover:text-bgDeep" />
+            <StaggerItem key={i}>
+              <div className="h-full glass rounded-xl p-6 hover:border-cyan/40 hover-lift transition-all duration-400 ease-glide group">
+                <div className="w-11 h-11 rounded-lg bg-cyan/10 border border-cyan/30 flex items-center justify-center mb-4 group-hover:bg-cyan transition-colors duration-400">
+                  <f.icon className="w-5 h-5 text-cyan group-hover:text-bgDeep transition-colors duration-400" />
+                </div>
+                <h3 className="font-syne font-bold text-white mb-2">{f.title}</h3>
+                <p className="text-sm text-muted leading-relaxed">{f.desc}</p>
               </div>
-              <h3 className="font-syne font-bold text-white mb-2">{f.title}</h3>
-              <p className="text-sm text-muted leading-relaxed">{f.desc}</p>
-            </div>
+            </StaggerItem>
           ))}
-        </div>
+        </Stagger>
       </section>
 
       {/* ===== WHAT GRAFIO IS NOT ===== */}
-      <section className="max-w-5xl mx-auto px-6 py-16">
+      <section className="max-w-5xl mx-auto px-6 py-20">
+        <Reveal>
         <Card glass className="!p-9 border border-mint/20 bg-gradient-to-br from-mint/5 to-transparent">
           <p className="text-xs uppercase tracking-widest text-mint mb-3 flex items-center gap-2">
             <CheckCircle2 className="w-3 h-3" /> Filosofi Kami
@@ -293,29 +312,34 @@ export default function Features() {
             </div>
           </div>
         </Card>
+        </Reveal>
       </section>
 
       {/* ===== CTA ===== */}
-      <section className="max-w-4xl mx-auto px-6 py-20 text-center">
-        <h2 className="text-3xl md:text-4xl font-syne font-bold text-white mb-4">
-          Coba pengalamannya sendiri.
-        </h2>
-        <p className="text-muted mb-8 max-w-xl mx-auto">
-          Upload satu file kecil aja — kamu akan langsung paham kenapa kami bilang Grafio
-          beda. Gratis selamanya untuk file standar.
-        </p>
-        <div className="flex items-center justify-center gap-3 flex-wrap">
-          <Link href="/dashboard">
-            <Button size="lg">
-              Buka Workspace <ArrowRight className="w-4 h-4" />
-            </Button>
-          </Link>
-          <Link href="/pricing">
-            <Button variant="ghost" size="lg">
-              Lihat Pricing
-            </Button>
-          </Link>
-        </div>
+      <section className="max-w-4xl mx-auto px-6 py-24 text-center">
+        <Reveal>
+          <h2 className="text-3xl md:text-5xl font-syne font-bold text-white mb-5 leading-tight">
+            Coba pengalamannya sendiri.
+          </h2>
+          <p className="text-muted mb-10 max-w-xl mx-auto text-base md:text-lg leading-relaxed">
+            Upload satu file kecil aja — kamu akan langsung paham kenapa kami bilang Grafio
+            beda. Gratis selamanya untuk file standar.
+          </p>
+          <div className="flex items-center justify-center gap-3 flex-wrap">
+            <MagneticButton strength={0.22}>
+              <Link href="/dashboard">
+                <Button size="lg">
+                  Buka Workspace <ArrowRight className="w-4 h-4" />
+                </Button>
+              </Link>
+            </MagneticButton>
+            <Link href="/pricing">
+              <Button variant="ghost" size="lg">
+                Lihat Pricing
+              </Button>
+            </Link>
+          </div>
+        </Reveal>
       </section>
 
       <Footer />

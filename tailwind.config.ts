@@ -101,6 +101,26 @@ const config: Config = {
         fadeUp: "fadeUp 0.6s ease-out both",
         glowSlow: "glowSlow 4s ease-in-out infinite",
       },
+      transitionTimingFunction: {
+        glide: "cubic-bezier(0.16, 1, 0.3, 1)",
+        snap: "cubic-bezier(0.32, 0.72, 0, 1)",
+      },
+      transitionDuration: {
+        "250": "250ms",
+        "400": "400ms",
+        "600": "600ms",
+        "900": "900ms",
+      },
+      // Z-index scale — hindari arbitrary `z-[9999]` per rekomendasi UI/UX
+      // Pro Max "z-index-management: Define scale (10, 20, 30, 50)".
+      // base=0, sticky/nav=50, dropdown=60, modal backdrop=80, modal=90, toast=100
+      zIndex: {
+        sticky: "50",
+        dropdown: "60",
+        backdrop: "80",
+        modal: "90",
+        toast: "100",
+      },
     },
   },
   plugins: [],

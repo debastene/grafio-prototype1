@@ -42,17 +42,20 @@ const milestones = [
 
 export default function About() {
   return (
-    <main className="min-h-screen bg-bgDeep relative">
+    <main className="min-h-screen bg-bgDeep relative overflow-x-hidden">
       <Nav />
       <div className="absolute inset-0 grid-bg pointer-events-none opacity-30" />
-      <div className="relative max-w-5xl mx-auto px-6 py-20">
+      <div className="absolute inset-0 bg-grad-hero opacity-50 pointer-events-none" />
+      <div className="relative max-w-5xl mx-auto px-6 py-24">
+        <div className="reveal">
         <SectionHeader
           eyebrow="About"
           title="Lihat di balik angka"
           description="Grafio dibangun oleh tim kecil yang percaya bahwa data analisis seharusnya semudah mengetik pertanyaan, bukan menulis SQL atau memencet 20 menu."
         />
+        </div>
 
-        <Card className="mb-10 bg-gradient-to-br from-cyan/5 to-purple/5 border-cyan/20">
+        <Card className="mb-10 bg-gradient-to-br from-cyan/5 to-purple/5 border-cyan/20 reveal" hover>
           <div className="flex items-start gap-4">
             <Target className="w-8 h-8 text-cyan flex-shrink-0" />
             <div>
@@ -67,10 +70,10 @@ export default function About() {
         </Card>
 
         <div className="grid md:grid-cols-2 gap-4 mb-12">
-          {values.map((v) => {
+          {values.map((v, i) => {
             const Icon = v.icon;
             return (
-              <Card key={v.title}>
+              <Card key={v.title} hover className="reveal" >
                 <Icon className="w-6 h-6 text-cyan mb-3" />
                 <h3 className="font-syne font-bold text-white mb-1.5">{v.title}</h3>
                 <p className="text-sm text-muted leading-relaxed">{v.body}</p>
@@ -97,11 +100,11 @@ export default function About() {
           </div>
         </div>
 
-        <Card className="text-center">
-          <p className="text-muted mb-3">Ingin tahu lebih lanjut atau collab?</p>
+        <Card className="text-center reveal" hover>
+          <p className="text-muted mb-4">Ingin tahu lebih lanjut atau collab?</p>
           <a
             href="/contact"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-md bg-cyan text-bgDeep font-semibold hover:bg-cyanSoft transition-colors text-sm font-syne"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-md bg-cyan text-bgDeep font-semibold hover:bg-cyanSoft hover:shadow-glow-lg transition-all duration-300 ease-glide text-sm font-syne shadow-glow"
           >
             Kontak Tim
           </a>

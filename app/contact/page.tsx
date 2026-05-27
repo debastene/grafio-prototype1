@@ -5,6 +5,9 @@ import Footer from "@/components/ui/Footer";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import SectionHeader from "@/components/ui/SectionHeader";
+import Reveal from "@/components/ui/motion/Reveal";
+import { Stagger, StaggerItem } from "@/components/ui/motion/Stagger";
+import MagneticButton from "@/components/ui/motion/MagneticButton";
 import { Mail, MessageSquare, Building2, Send, Check } from "lucide-react";
 
 export default function Contact() {
@@ -42,19 +45,22 @@ export default function Contact() {
   };
 
   return (
-    <main className="min-h-screen bg-bgDeep relative">
+    <main className="min-h-screen bg-bgDeep relative overflow-x-hidden">
       <Nav />
       <div className="absolute inset-0 bg-grad-hero pointer-events-none" />
-      <div className="relative max-w-7xl mx-auto px-6 py-20">
-        <SectionHeader
-          eyebrow="Contact"
-          title="Mari Bicara tentang Datamu"
-          description="Tim kami siap membantu — sales, support, partnership, atau sekedar diskusi."
-        />
+      <div className="relative max-w-7xl mx-auto px-6 py-24">
+        <Reveal>
+          <SectionHeader
+            eyebrow="Contact"
+            title="Mari Bicara tentang Datamu"
+            description="Tim kami siap membantu — sales, support, partnership, atau sekedar diskusi."
+          />
+        </Reveal>
 
         <div className="grid lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
           {/* Form */}
           <div className="lg:col-span-2">
+            <Reveal delay={0.05}>
             <Card glass className="!p-8">
               <form onSubmit={submit} className="space-y-4">
                 <div className="grid md:grid-cols-2 gap-4">
@@ -111,74 +117,89 @@ export default function Contact() {
                   />
                 </label>
                 <div className="flex items-center gap-3 flex-wrap">
-                  <Button type="submit" className="w-full md:w-auto">
-                    {sent ? <><Check className="w-4 h-4" /> Email client dibuka!</> : <><Send className="w-4 h-4" /> Kirim Pesan</>}
-                  </Button>
+                  <MagneticButton strength={0.18}>
+                    <Button type="submit" className="w-full md:w-auto">
+                      {sent ? <><Check className="w-4 h-4" /> Email client dibuka!</> : <><Send className="w-4 h-4" /> Kirim Pesan</>}
+                    </Button>
+                  </MagneticButton>
                   <p className="text-[11px] text-muted">
                     Tombol ini membuka email client default Anda dengan pesan yang sudah disiapkan.
                   </p>
                 </div>
               </form>
             </Card>
+            </Reveal>
           </div>
 
           {/* Side info */}
-          <div className="space-y-4">
-            <Card>
-              <div className="flex items-center gap-2 mb-2">
-                <Mail className="w-4 h-4 text-cyan" />
-                <p className="font-syne font-semibold text-white">Email langsung</p>
-              </div>
-              <a href="mailto:grafio.founder@gmail.com" className="text-sm text-cyan hover:underline">
-                grafio.founder@gmail.com
-              </a>
-              <p className="text-xs text-muted mt-2">Respon dalam 1×24 jam.</p>
-            </Card>
-            <Card>
-              <div className="flex items-center gap-2 mb-2">
-                <Building2 className="w-4 h-4 text-cyan" />
-                <p className="font-syne font-semibold text-white" id="sales">Enterprise</p>
-              </div>
-              <p className="text-sm text-muted">
-                Diskusi custom plan, on-prem, SSO, dan dedicated CSM.
-              </p>
-            </Card>
-            <Card>
-              <div className="flex items-center gap-2 mb-2">
-                <MessageSquare className="w-4 h-4 text-cyan" />
-                <p className="font-syne font-semibold text-white">Komunitas</p>
-              </div>
-              <p className="text-sm text-muted">
-                Join Discord & forum untuk tanya-jawab dengan tim & user lain.
-              </p>
-            </Card>
-          </div>
+          <Stagger className="space-y-4" gap={0.07}>
+            <StaggerItem>
+              <Card hover>
+                <div className="flex items-center gap-2 mb-2">
+                  <Mail className="w-4 h-4 text-cyan" />
+                  <p className="font-syne font-semibold text-white">Email langsung</p>
+                </div>
+                <a href="mailto:grafio.founder@gmail.com" className="text-sm text-cyan link-underline">
+                  grafio.founder@gmail.com
+                </a>
+                <p className="text-xs text-muted mt-2">Respon dalam 1×24 jam.</p>
+              </Card>
+            </StaggerItem>
+            <StaggerItem>
+              <Card hover>
+                <div className="flex items-center gap-2 mb-2">
+                  <Building2 className="w-4 h-4 text-cyan" />
+                  <p className="font-syne font-semibold text-white" id="sales">Enterprise</p>
+                </div>
+                <p className="text-sm text-muted">
+                  Diskusi custom plan, on-prem, SSO, dan dedicated CSM.
+                </p>
+              </Card>
+            </StaggerItem>
+            <StaggerItem>
+              <Card hover>
+                <div className="flex items-center gap-2 mb-2">
+                  <MessageSquare className="w-4 h-4 text-cyan" />
+                  <p className="font-syne font-semibold text-white">Komunitas</p>
+                </div>
+                <p className="text-sm text-muted">
+                  Join Discord & forum untuk tanya-jawab dengan tim & user lain.
+                </p>
+              </Card>
+            </StaggerItem>
+          </Stagger>
         </div>
 
         {/* About / Privacy / Terms anchors */}
-        <div className="grid md:grid-cols-3 gap-6 mt-20 max-w-6xl mx-auto">
-          <Card id="about">
-            <h3 className="font-syne font-bold text-white mb-2">About</h3>
-            <p className="text-sm text-muted leading-relaxed">
-              Grafio dibangun untuk membantu siapa saja — analyst, scientist, founder, mahasiswa —
-              memahami data tanpa harus jadi expert. See Beyond The Numbers.
-            </p>
-          </Card>
-          <Card id="privacy">
-            <h3 className="font-syne font-bold text-white mb-2">Privacy</h3>
-            <p className="text-sm text-muted leading-relaxed">
-              Data kamu dienkripsi AES-256, tidak disimpan setelah analisis selesai, dan tidak
-              pernah digunakan untuk training model AI. GDPR &amp; UU PDP compliant.
-            </p>
-          </Card>
-          <Card id="terms">
-            <h3 className="font-syne font-bold text-white mb-2">Terms</h3>
-            <p className="text-sm text-muted leading-relaxed">
-              Penggunaan Grafio tunduk pada Terms of Service kami. Cancel kapan saja, refund
-              prorata untuk paket tahunan dalam 30 hari pertama.
-            </p>
-          </Card>
-        </div>
+        <Stagger className="grid md:grid-cols-3 gap-6 mt-24 max-w-6xl mx-auto" gap={0.08}>
+          <StaggerItem>
+            <Card id="about" hover>
+              <h3 className="font-syne font-bold text-white mb-2">About</h3>
+              <p className="text-sm text-muted leading-relaxed">
+                Grafio dibangun untuk membantu siapa saja — analyst, scientist, founder, mahasiswa —
+                memahami data tanpa harus jadi expert. See Beyond The Numbers.
+              </p>
+            </Card>
+          </StaggerItem>
+          <StaggerItem>
+            <Card id="privacy" hover>
+              <h3 className="font-syne font-bold text-white mb-2">Privacy</h3>
+              <p className="text-sm text-muted leading-relaxed">
+                Data kamu dienkripsi AES-256, tidak disimpan setelah analisis selesai, dan tidak
+                pernah digunakan untuk training model AI. GDPR &amp; UU PDP compliant.
+              </p>
+            </Card>
+          </StaggerItem>
+          <StaggerItem>
+            <Card id="terms" hover>
+              <h3 className="font-syne font-bold text-white mb-2">Terms</h3>
+              <p className="text-sm text-muted leading-relaxed">
+                Penggunaan Grafio tunduk pada Terms of Service kami. Cancel kapan saja, refund
+                prorata untuk paket tahunan dalam 30 hari pertama.
+              </p>
+            </Card>
+          </StaggerItem>
+        </Stagger>
       </div>
       <Footer />
     </main>

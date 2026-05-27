@@ -53,11 +53,18 @@ export default function Dashboard() {
 
 function DashboardSkeleton() {
   return (
-    <main className="min-h-screen bg-bgDeep relative">
+    <main className="min-h-screen bg-bgDeep relative overflow-x-hidden">
       <Nav />
-      <div className="relative max-w-7xl mx-auto px-6 py-10">
-        <div className="h-8 w-48 bg-bgSurface rounded animate-pulse mb-3" />
-        <div className="h-4 w-72 bg-bgSurface rounded animate-pulse" />
+      <div className="absolute inset-0 bg-grad-hero opacity-30 pointer-events-none" />
+      <div className="relative max-w-7xl mx-auto px-6 py-12">
+        <div className="h-10 w-64 bg-bgSurface/80 rounded-lg animate-pulse mb-4" />
+        <div className="h-5 w-96 bg-bgSurface/60 rounded animate-pulse mb-10" />
+        <div className="grid md:grid-cols-3 gap-4 mb-6">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="h-32 glass rounded-xl animate-pulse" style={{ animationDelay: `${i * 100}ms` }} />
+          ))}
+        </div>
+        <div className="h-80 glass rounded-2xl animate-pulse" />
       </div>
     </main>
   );
@@ -265,7 +272,7 @@ function DashboardContent() {
   }, [mode, aiResult, monthsRange]);
 
   return (
-    <main className="min-h-screen bg-bgDeep relative">
+    <main className="min-h-screen bg-bgDeep relative overflow-x-hidden">
       <Nav />
       <div className="absolute inset-0 grid-bg pointer-events-none opacity-50" />
       <div className="relative max-w-7xl mx-auto px-6 py-10">

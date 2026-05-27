@@ -53,17 +53,20 @@ const perks = [
 
 export default function Careers() {
   return (
-    <main className="min-h-screen bg-bgDeep relative">
+    <main className="min-h-screen bg-bgDeep relative overflow-x-hidden">
       <Nav />
       <div className="absolute inset-0 grid-bg pointer-events-none opacity-30" />
-      <div className="relative max-w-5xl mx-auto px-6 py-20">
+      <div className="absolute inset-0 bg-grad-hero opacity-50 pointer-events-none" />
+      <div className="relative max-w-5xl mx-auto px-6 py-24">
+        <div className="reveal">
         <SectionHeader
           eyebrow="Careers"
           title="Bangun produk untuk jutaan orang"
           description="Kami tim kecil dengan mimpi besar — bikin data analytics jadi se-mainstream Microsoft Word di Indonesia."
         />
+        </div>
 
-        <Card className="mb-10 bg-gradient-to-br from-cyan/5 to-purple/5 border-cyan/20">
+        <Card className="mb-10 bg-gradient-to-br from-cyan/5 to-purple/5 border-cyan/20 reveal" hover>
           <p className="text-white leading-relaxed text-sm">
             <strong className="text-cyan">Kami punya 1 prinsip rekrutmen:</strong> hire orang yang lebih
             pinter dari kami di bidangnya. Background formal kurang penting — portofolio dan cara
@@ -92,7 +95,7 @@ export default function Careers() {
                 </div>
                 <a
                   href={`mailto:careers@grafio.app?subject=Apply: ${encodeURIComponent(r.title)}`}
-                  className="px-4 py-2 rounded-md border border-cyan text-cyan hover:bg-cyan hover:text-bgDeep transition-colors text-sm font-semibold flex-shrink-0"
+                  className="px-4 py-2 rounded-md border border-cyan text-cyan hover:bg-cyan hover:text-bgDeep hover:shadow-glow transition-all duration-300 ease-glide text-sm font-semibold flex-shrink-0"
                 >
                   Apply →
                 </a>

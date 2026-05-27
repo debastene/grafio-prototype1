@@ -521,7 +521,7 @@ function ResultView({
 
 function PageShell({ children }: { children: React.ReactNode }) {
   return (
-    <main className="min-h-screen bg-bgDeep relative">
+    <main className="min-h-screen bg-bgDeep relative overflow-x-hidden">
       <Nav />
       <div className="absolute inset-0 grid-bg pointer-events-none opacity-50" />
       <div className="relative max-w-3xl mx-auto px-6 py-10">{children}</div>

@@ -74,17 +74,20 @@ const sections = [
 
 export default function Privacy() {
   return (
-    <main className="min-h-screen bg-bgDeep relative">
+    <main className="min-h-screen bg-bgDeep relative overflow-x-hidden">
       <Nav />
       <div className="absolute inset-0 grid-bg pointer-events-none opacity-30" />
-      <div className="relative max-w-4xl mx-auto px-6 py-20">
+      <div className="absolute inset-0 bg-grad-hero opacity-50 pointer-events-none" />
+      <div className="relative max-w-4xl mx-auto px-6 py-24">
+        <div className="reveal">
         <SectionHeader
           eyebrow="Legal"
           title="Privacy Policy"
           description="Berlaku efektif 1 Januari 2026 · Versi 2.1 · Kami percaya privasi adalah hak, bukan fitur."
         />
+        </div>
 
-        <Card className="mb-6">
+        <Card className="mb-6 reveal" hover>
           <p className="text-sm text-white leading-relaxed">
             <strong className="text-cyan">Singkat:</strong> Data kamu adalah datamu. Kami enkripsi end-to-end,
             tidak pakai untuk training model, dan kamu bisa hapus kapan saja. Engine statistik jalan di
