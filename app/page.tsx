@@ -25,13 +25,15 @@ import {
   FileDown, Layers, Eye, ArrowRight, Star, Check,
 } from "lucide-react";
 
-// OrbitStar = bespoke interactive centerpiece (drag-to-rotate + momentum +
-// pill insight orbital). Lazy-load client-only supaya SSR landing ringan.
-// Loading placeholder ukuran SAMA dengan actual orbit supaya tidak layout-jump
-// saat hydration: 240 mobile / 340 desktop (lihat usage di hero).
+// OrbitStar 3D = bespoke interactive globe-style centerpiece. Drag untuk
+// rotate, click label untuk info panel. Lazy-load client-only karena three.js
+// butuh window + bundle besar (split di route level supaya tidak block landing).
+// Placeholder match desktop canvas size supaya tidak layout-jump.
 const OrbitStar = dynamic(() => import("@/components/ui/motion/OrbitStar"), {
   ssr: false,
-  loading: () => <div className="w-[240px] h-[240px] md:w-[340px] md:h-[340px]" />,
+  loading: () => (
+    <div className="w-[280px] h-[280px] md:w-[480px] md:h-[480px]" />
+  ),
 });
 
 type FeatureAccent = "cyan" | "violet" | "mint" | "coral" | "warning" | "purple";
@@ -103,28 +105,9 @@ export default function Landing() {
             </span>
           </Reveal>
 
-          {/* CENTERPIECE — interactive orbit star, drag untuk spin */}
-          <Reveal delay={0.12} className="relative my-3 md:my-4">
-            <div className="hidden md:flex items-center justify-center">
-              <OrbitStar
-                size={340}
-                labels={[
-                  "Revenue", "Users", "Growth",
-                  "Trends", "Signals", "Anomaly",
-                  "Forecast", "Retention", "Churn",
-                ]}
-                ringCount={3}
-                baseSpeed={14}
-              />
-            </div>
-            <div className="md:hidden flex items-center justify-center">
-              <OrbitStar
-                size={240}
-                labels={["Revenue", "Users", "Trends", "Signals", "Forecast", "Churn"]}
-                ringCount={2}
-                baseSpeed={14}
-              />
-            </div>
+          {/* CENTERPIECE — 3D interactive orbit star, drag-rotate + click label */}
+          <Reveal delay={0.12} className="relative w-full my-3 md:my-4">
+            <OrbitStar size={480} baseSpeed={0.6} />
           </Reveal>
 
           {/* HEADLINE — 2 baris max, tight */}
