@@ -1,7 +1,7 @@
 "use client";
-import { useRef, useMemo, useState, useEffect, Suspense } from "react";
+import { useRef, useMemo, useEffect, Suspense } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls, Html, Billboard } from "@react-three/drei";
+import { OrbitControls, Html } from "@react-three/drei";
 import * as THREE from "three";
 import type { OrbitTerm, OrbitAccent } from "./orbitTerms";
 
@@ -23,106 +23,196 @@ const RING_ORIENTATIONS: [number, number, number][] = [
   [-Math.PI / 4, Math.PI / 3, 0], // tilted back + yaw
 ];
 
-const RING_RADII = [2.0, 1.7, 2.3];
+// Radii dipilih supaya label pill (~50-60px wide HTML overlay) muat
+// dalam canvas + buffer 50-80px ke edge. Sebelumnya max 2.3 terlalu
+// besar → labels keluar canvas & ke-clip oleh section overflow-hidden.
+const RING_RADII = [1.35, 1.1, 1.55];
+
+const CAMERA_Z = 6;
 
 // ============================================================
-// CENTER STARBURST
+// CENTER STARBURST — premium SVG via Html overlay
 // ============================================================
 
 /**
- * Glowing core orb dengan 6-ray starburst (3D mesh + emissive material).
- * Tetap di pusat, pulse breathing halus. Tidak ikut auto-rotate orbit.
+ * StarCore — glowing centerpiece di world origin.
+ *
+ * IMPLEMENTASI: pakai drei <Html center> untuk mount SVG starburst
+ * persis di koordinat (0,0,0). Pendekatan ini memberi kontrol gradient
+ * & filter penuh (radial gradients berlapis, specular highlight, drop-
+ * shadow glow, smooth pulse animation) yang sulit dicapai dengan
+ * Three.js material primitives saja. Visual = premium "luxury orb",
+ * bukan flat construction-line sketch.
+ *
+ * Point light Three.js tetap ada untuk ambient cyan glow yang mengenai
+ * orbit rings — memberi kesan "core bercahaya menerangi seluruh globe".
  */
-function StarCore({ pulse = true }: { pulse?: boolean }) {
-  const coreRef = useRef<THREE.Mesh>(null);
-  const haloRef = useRef<THREE.Mesh>(null);
-
-  useFrame(({ clock }) => {
-    if (!pulse) return;
-    const t = clock.getElapsedTime();
-    const s = 1 + Math.sin(t * 1.3) * 0.04;
-    if (coreRef.current) coreRef.current.scale.setScalar(s);
-    if (haloRef.current) haloRef.current.scale.setScalar(s * 1.1);
-  });
-
+function StarCore() {
   return (
-    <group>
-      {/* Outer halo glow (sprite-like billboard sphere) */}
-      <Billboard>
-        <mesh ref={haloRef}>
-          <circleGeometry args={[0.55, 32]} />
-          <meshBasicMaterial color="#00D4FF" transparent opacity={0.18} />
-        </mesh>
-      </Billboard>
-
-      {/* Mid glow */}
-      <Billboard>
-        <mesh>
-          <circleGeometry args={[0.32, 32]} />
-          <meshBasicMaterial color="#7DE3FF" transparent opacity={0.32} />
-        </mesh>
-      </Billboard>
-
-      {/* Solid core sphere */}
-      <mesh ref={coreRef}>
-        <sphereGeometry args={[0.16, 32, 32]} />
-        <meshBasicMaterial color="#ffffff" />
-      </mesh>
-
-      {/* 12-ray starburst as line segments (motif Grafio compass) */}
-      <Starburst rays={12} length={0.42} />
-      {/* Inner 6-ray brighter accent */}
-      <Starburst rays={6} length={0.28} color="#ffffff" linewidth={2} />
-
-      {/* Cyan point light for ambient glow on rings */}
+    <>
+      {/* Ambient cyan light dari core ke rings */}
       <pointLight position={[0, 0, 0]} intensity={2.5} color="#00D4FF" distance={4} />
-    </group>
+
+      {/* SVG starburst mounted di world origin */}
+      <Html
+        center
+        position={[0, 0, 0]}
+        zIndexRange={[1, 0]}
+        style={{ pointerEvents: "none" }}
+      >
+        <PremiumStarburst />
+      </Html>
+    </>
   );
 }
 
 /**
- * Helper: emanating rays dari pusat ke ray endpoints.
- * Always face camera via Billboard supaya konsisten dari semua angle.
+ * Premium SVG starburst — gradient layers + specular + glow filter.
+ *
+ * Layer dari belakang ke depan:
+ * 1. Outer halo (radial cyan→violet, large, soft)
+ * 2. 12 ray (4 major + 8 minor) dengan linear gradient tapered
+ * 3. Crystal halo medium (radial bright cyan)
+ * 4. Inner core bright (radial white→cyan)
+ * 5. Specular highlight (off-center ellipse, kesan glass curvature)
+ * 6. 6-ray inner accent (brightest white)
+ * 7. Center dot pinpoint
+ *
+ * Gentle breathing pulse + drop-shadow cyan untuk glow yang "spill out".
  */
-function Starburst({
-  rays,
-  length,
-  color = "#00D4FF",
-  linewidth = 1,
-}: {
-  rays: number;
-  length: number;
-  color?: string;
-  linewidth?: number;
-}) {
-  const points = useMemo(() => {
-    const pts: number[] = [];
-    for (let i = 0; i < rays; i++) {
-      const angle = (i / rays) * Math.PI * 2;
-      // line from center to endpoint
-      pts.push(0, 0, 0);
-      pts.push(Math.cos(angle) * length, Math.sin(angle) * length, 0);
-    }
-    return new Float32Array(pts);
-  }, [rays, length]);
-
-  const geom = useMemo(() => {
-    const g = new THREE.BufferGeometry();
-    g.setAttribute("position", new THREE.BufferAttribute(points, 3));
-    return g;
-  }, [points]);
-
+function PremiumStarburst() {
   return (
-    <Billboard>
-      <lineSegments geometry={geom}>
-        <lineBasicMaterial
-          color={color}
-          transparent
-          opacity={0.95}
-          linewidth={linewidth}
-        />
-      </lineSegments>
-    </Billboard>
+    <div
+      aria-hidden
+      style={{
+        width: 240,
+        height: 240,
+        position: "relative",
+        pointerEvents: "none",
+      }}
+    >
+      <style>{`
+        @keyframes grafio-star-pulse {
+          0%, 100% { transform: scale(1); opacity: 0.96; }
+          50%      { transform: scale(1.06); opacity: 1; }
+        }
+        @keyframes grafio-star-rotate-slow {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+
+      {/* Layer 1: outermost soft fog (DOES NOT pulse — stable ambient) */}
+      <div
+        style={{
+          position: "absolute",
+          inset: -40,
+          background:
+            "radial-gradient(circle, rgba(0,212,255,0.28) 0%, rgba(139,92,246,0.15) 35%, transparent 65%)",
+          filter: "blur(20px)",
+        }}
+      />
+
+      {/* Layer 2: 12 rotating outer rays (slow spin) */}
+      <svg
+        viewBox="0 0 240 240"
+        width="240"
+        height="240"
+        style={{
+          position: "absolute",
+          inset: 0,
+          animation: "grafio-star-rotate-slow 60s linear infinite",
+        }}
+      >
+        <defs>
+          <linearGradient id="grafio-ray-major" x1="50%" y1="0%" x2="50%" y2="100%">
+            <stop offset="0%" stopColor="#7DE3FF" stopOpacity="0" />
+            <stop offset="55%" stopColor="#00D4FF" stopOpacity="0.95" />
+            <stop offset="100%" stopColor="#ffffff" stopOpacity="1" />
+          </linearGradient>
+          <linearGradient id="grafio-ray-minor" x1="50%" y1="0%" x2="50%" y2="100%">
+            <stop offset="0%" stopColor="#A78BFA" stopOpacity="0" />
+            <stop offset="60%" stopColor="#8B5CF6" stopOpacity="0.65" />
+            <stop offset="100%" stopColor="#7DE3FF" stopOpacity="0.85" />
+          </linearGradient>
+        </defs>
+        {Array.from({ length: 12 }, (_, i) => {
+          const angle = (i / 12) * 360;
+          const isMajor = i % 3 === 0;
+          return (
+            <line
+              key={i}
+              x1="120"
+              y1="120"
+              x2="120"
+              y2={isMajor ? 30 : 50}
+              stroke={isMajor ? "url(#grafio-ray-major)" : "url(#grafio-ray-minor)"}
+              strokeWidth={isMajor ? 2.5 : 1.5}
+              strokeLinecap="round"
+              transform={`rotate(${angle} 120 120)`}
+              opacity={isMajor ? 0.95 : 0.5}
+            />
+          );
+        })}
+      </svg>
+
+      {/* Layer 3-7: core orb (pulses gentle, drop-shadow glow) */}
+      <svg
+        viewBox="0 0 240 240"
+        width="240"
+        height="240"
+        style={{
+          position: "absolute",
+          inset: 0,
+          animation: "grafio-star-pulse 4.5s ease-in-out infinite",
+          filter: "drop-shadow(0 0 28px rgba(0, 212, 255, 0.65)) drop-shadow(0 0 8px rgba(255,255,255,0.4))",
+        }}
+      >
+        <defs>
+          <radialGradient id="grafio-core-orb" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
+            <stop offset="32%" stopColor="#7DE3FF" stopOpacity="0.95" />
+            <stop offset="62%" stopColor="#00D4FF" stopOpacity="0.55" />
+            <stop offset="100%" stopColor="#8B5CF6" stopOpacity="0" />
+          </radialGradient>
+          <radialGradient id="grafio-core-inner" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
+            <stop offset="55%" stopColor="#7DE3FF" stopOpacity="0.85" />
+            <stop offset="100%" stopColor="#00D4FF" stopOpacity="0.2" />
+          </radialGradient>
+          <radialGradient id="grafio-core-highlight" cx="38%" cy="32%" r="35%">
+            <stop offset="0%" stopColor="#ffffff" stopOpacity="0.9" />
+            <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+          </radialGradient>
+        </defs>
+
+        {/* Crystal halo medium */}
+        <circle cx="120" cy="120" r="46" fill="url(#grafio-core-orb)" />
+
+        {/* Inner bright core */}
+        <circle cx="120" cy="120" r="28" fill="url(#grafio-core-inner)" />
+
+        {/* Specular highlight (kesan dimensional, light dari top-left) */}
+        <ellipse cx="106" cy="100" rx="16" ry="9" fill="url(#grafio-core-highlight)" />
+
+        {/* 6-ray inner accent (brightest) */}
+        {Array.from({ length: 6 }, (_, i) => (
+          <line
+            key={i}
+            x1="120"
+            y1="120"
+            x2="120"
+            y2="78"
+            stroke="rgba(255,255,255,0.96)"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            transform={`rotate(${(i / 6) * 360} 120 120)`}
+          />
+        ))}
+
+        {/* Center pinpoint */}
+        <circle cx="120" cy="120" r="3.5" fill="#ffffff" />
+      </svg>
+    </div>
   );
 }
 
@@ -397,7 +487,7 @@ function Scene({
     <>
       <ambientLight intensity={0.5} />
 
-      <StarCore pulse />
+      <StarCore />
 
       {RING_ORIENTATIONS.map((rot, i) => (
         <OrbitRing
@@ -456,7 +546,7 @@ export default function OrbitScene3D({
   return (
     <div className={className} style={{ width: "100%", height: "100%" }}>
       <Canvas
-        camera={{ position: [0, 0, 5.5], fov: 50 }}
+        camera={{ position: [0, 0, CAMERA_Z], fov: 50 }}
         dpr={[1, 2]}
         gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
         style={{ background: "transparent", touchAction: "none" }}
