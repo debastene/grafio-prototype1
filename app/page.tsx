@@ -106,7 +106,7 @@ export default function Landing() {
           </Reveal>
 
           {/* CENTERPIECE — 3D interactive orbit star, drag-rotate + click label */}
-          <Reveal delay={0.12} className="relative w-full my-3 md:my-4">
+          <Reveal delay={0.12} className="relative w-full -my-2 md:-my-4">
             <OrbitStar size={480} baseSpeed={0.6} />
           </Reveal>
 

@@ -23,12 +23,16 @@ const RING_ORIENTATIONS: [number, number, number][] = [
   [-Math.PI / 4, Math.PI / 3, 0], // tilted back + yaw
 ];
 
-// Radii dipilih supaya label pill (~50-60px wide HTML overlay) muat
-// dalam canvas + buffer 50-80px ke edge. Sebelumnya max 2.3 terlalu
-// besar → labels keluar canvas & ke-clip oleh section overflow-hidden.
-const RING_RADII = [1.35, 1.1, 1.55];
+// Radii dipilih supaya orbit fill ~75-80% canvas (visual weight kuat,
+// tidak tenggelam di whitespace) sambil tetap menyisakan ~55-60px
+// buffer ke edge untuk label pill HTML overlay.
+//
+// Tuning: pada canvas 480px + camera z=6.5 + FOV 50:
+//   pixel/unit = 79.2 → outer ring r=1.95 projects ke ±154px dari pusat
+//   → label edge ~180px dari pusat → margin ~60px ke canvas edge. Aman.
+const RING_RADII = [1.7, 1.4, 1.95];
 
-const CAMERA_Z = 6;
+const CAMERA_Z = 6.5;
 
 // ============================================================
 // CENTER STARBURST — premium SVG via Html overlay
