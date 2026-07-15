@@ -588,7 +588,7 @@ class Paper {
       this.doc.setFont("helvetica", "normal");
       this.doc.setFontSize(7.5);
       this.doc.setTextColor(...TH.inkFaint);
-      const cap = "grafio.app";
+      const cap = "usegrafio.com";
       this.doc.text(cap, PAGE_W - MARGIN_X - this.doc.getTextWidth(cap), PAGE_H - 35);
       // Caption (left)
       this.doc.text("See Beyond The Numbers", MARGIN_X, PAGE_H - 35);
@@ -764,7 +764,7 @@ function buildCover(p: Paper, result: EngineResult, logo: LogoAsset | null) {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7.5);
   doc.setTextColor(...TH.inkFaint);
-  const proc = `Dianalisis dalam ${result.durationMs.toFixed(0)} ms  ·  grafio.app`;
+  const proc = `Dianalisis dalam ${result.durationMs.toFixed(0)} ms  ·  usegrafio.com`;
   doc.text(proc, PAGE_W - MARGIN_X - doc.getTextWidth(proc), PAGE_H - 60);
 
   doc.setFont("times", "italic");

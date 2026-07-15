@@ -122,6 +122,13 @@ function SignupForm() {
               );
             })}
           </div>
+          {(plan === "student" || plan === "pro") && (
+            <p className="text-[11px] text-warning/90 bg-warning/5 border border-warning/25 rounded-md p-2.5 mb-4">
+              Akun dibuat sebagai <span className="font-semibold">Free</span> dulu — plan{" "}
+              {planMeta[plan].label} aktif setelah verifikasi &amp; pembayaran dikonfirmasi
+              (kami hubungi via email).
+            </p>
+          )}
           {plan === "custom" && (
             <p className="text-xs text-muted bg-bgSurface border border-borderColor rounded-md p-3 mb-4">
               Untuk Custom plan,{" "}
@@ -185,9 +192,9 @@ function SignupForm() {
           </form>
 
           <ul className="mt-5 space-y-1.5 text-[11px] text-muted">
-            <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-mint" /> {plan === "student" ? "Akses fitur Student plan" : plan === "pro" ? "Akses fitur Pro plan" : "Akses Free plan, upgrade kapan saja"}</li>
+            <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-mint" /> {plan === "student" ? "Student aktif setelah verifikasi institusi" : plan === "pro" ? "Pro aktif setelah pembayaran dikonfirmasi" : "Akses Free plan, upgrade kapan saja"}</li>
             <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-mint" /> Cancel kapan saja</li>
-            <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-mint" /> Data dienkripsi end-to-end</li>
+            <li className="flex items-center gap-2"><Check className="w-3.5 h-3.5 text-mint" /> Data dienkripsi saat transit (HTTPS) &amp; tersimpan aman</li>
           </ul>
 
           <p className="text-center text-sm text-muted mt-5">

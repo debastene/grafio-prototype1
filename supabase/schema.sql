@@ -31,6 +31,9 @@ create table if not exists public.profiles (
     email text not null unique,
     name text not null default '',
     plan text not null default 'free' check (plan in ('free', 'trial', 'student', 'pro', 'custom')),
+    -- Plan yang DIMINTA user saat signup (belum tentu aktif). Paid plan baru
+    -- pindah ke `plan` setelah verifikasi/pembayaran oleh admin (service role).
+    requested_plan text not null default 'free' check (requested_plan in ('free', 'trial', 'student', 'pro', 'custom')),
     phone text,
     social_media text,
     nrp text,
@@ -39,6 +42,11 @@ create table if not exists public.profiles (
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
 );
+
+-- Idempotent upgrade untuk instance lama (create table if not exists tidak
+-- menambah kolom baru ke tabel existing).
+alter table public.profiles
+  add column if not exists requested_plan text not null default 'free';
 
 -- Auto-update updated_at on row modification
 create or replace function public.set_updated_at()
@@ -57,27 +65,44 @@ create trigger profiles_set_updated_at
     for each row execute function public.set_updated_at();
 
 -- Auto-create profile row when a new auth.users record is created.
--- name + plan + extras come from raw_user_meta_data passed during signUp.
+-- name + extras come from raw_user_meta_data passed during signUp.
+--
+-- SECURITY: `plan` dari client TIDAK dipercaya. user_metadata bisa di-set bebas
+-- oleh siapa pun lewat anon key (mis. signUp dengan data.plan = 'pro'), jadi
+-- di sini di-CLAMP: hanya 'free' dan 'trial' yang boleh dari signup. Paid plan
+-- (student/pro/custom) hanya boleh di-set manual/via billing pakai service role.
+-- Plan yang diminta user disimpan di `requested_plan` untuk follow-up admin.
 create or replace function public.handle_new_user()
 returns trigger
 security definer
 set search_path = public
 language plpgsql
 as $$
+declare
+    v_requested text := coalesce(new.raw_user_meta_data->>'plan', 'free');
+    v_plan text;
 begin
-    insert into public.profiles (id, email, name, plan, phone, social_media, nrp, institution, trial_ends_at)
+    -- Clamp: signup hanya boleh menghasilkan plan gratis.
+    v_plan := case when v_requested = 'trial' then 'trial' else 'free' end;
+
+    insert into public.profiles (id, email, name, plan, requested_plan, phone, social_media, nrp, institution, trial_ends_at)
     values (
         new.id,
         new.email,
         coalesce(new.raw_user_meta_data->>'name', split_part(new.email, '@', 1)),
-        coalesce(new.raw_user_meta_data->>'plan', 'free'),
+        v_plan,
+        case when v_requested in ('free','trial','student','pro','custom') then v_requested else 'free' end,
         new.raw_user_meta_data->>'phone',
         new.raw_user_meta_data->>'social_media',
         new.raw_user_meta_data->>'nrp',
         new.raw_user_meta_data->>'institution',
+        -- trial_ends_at hanya relevan untuk trial; clamp maksimal 30 hari ke depan
         case
-            when new.raw_user_meta_data->>'trial_ends_at' is not null
-                then (new.raw_user_meta_data->>'trial_ends_at')::timestamptz
+            when v_plan = 'trial' and new.raw_user_meta_data->>'trial_ends_at' is not null
+                then least(
+                    (new.raw_user_meta_data->>'trial_ends_at')::timestamptz,
+                    now() + interval '30 days'
+                )
             else null
         end
     )

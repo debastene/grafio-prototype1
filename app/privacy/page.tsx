@@ -25,7 +25,7 @@ const sections = [
     title: "2. Bagaimana Data Diproses",
     body: [
       "Parsing & analisis statistik berjalan client-side di browser kamu — engine tidak meninggalkan device.",
-      "Untuk fitur AI (Copilot, narasi insight, clarification), schema + sample 5 baris dikirim ke OpenRouter (provider model gratis). Raw data full tidak dikirim.",
+      "Untuk fitur AI (Copilot, narasi insight, clarification), schema + sample data (maksimal ±8 KB, bukan file penuh) dikirim ke OpenRouter (provider model gratis).",
       "Provider model gratis (Qwen, NVIDIA, Meta, Google) mungkin menyimpan request untuk audit / training mereka — gunakan paket berbayar untuk privasi penuh.",
       "Tidak ada bagian data kamu yang digunakan untuk training model Grafio.",
     ],
@@ -34,25 +34,24 @@ const sections = [
     icon: Shield,
     title: "3. Enkripsi & Keamanan",
     body: [
-      "Transit: TLS 1.3 (HTTPS) untuk semua komunikasi.",
-      "Storage: AES-256 untuk data at-rest (kalau kamu pakai fitur Save Workspace).",
-      "Password: bcrypt cost 12, tidak pernah disimpan plaintext.",
-      "Auditable: source code engine open untuk inspeksi.",
+      "Transit: HTTPS/TLS untuk semua komunikasi.",
+      "Storage: project yang kamu save disimpan di Supabase (Postgres) — dienkripsi at-rest oleh infrastruktur Supabase.",
+      "Password: di-hash oleh Supabase Auth (bcrypt), tidak pernah disimpan plaintext.",
+      "Akses data dibatasi Row Level Security — tiap user hanya bisa baca/tulis miliknya sendiri.",
     ],
   },
   {
     icon: Trash2,
     title: "4. Retensi & Penghapusan",
     body: [
-      "File yang diupload disimpan di memory browser selama sesi aktif saja. Reload = data hilang.",
-      "Workspace yang kamu save manual disimpan max 90 hari — bisa dihapus kapan saja dari Settings.",
-      "Akun yang tidak aktif > 12 bulan akan di-anonymize otomatis.",
-      "Right to be forgotten: kirim email ke privacy@grafio.app — kami hapus dalam 7 hari kerja.",
+      "File yang diupload diproses di memory browser selama sesi aktif saja. Reload = data hilang.",
+      "Project yang kamu save manual tersimpan sampai kamu hapus sendiri — bisa dihapus kapan saja dari halaman Projects.",
+      "Right to be forgotten: kirim email ke privacy@usegrafio.com — kami hapus dalam 7 hari kerja.",
     ],
   },
   {
     icon: Eye,
-    title: "5. Hak Kamu (GDPR + UU PDP)",
+    title: "5. Hak Kamu (mengacu prinsip GDPR + UU PDP)",
     body: [
       "Akses: minta export semua data yang kami punya tentangmu.",
       "Koreksi: minta kami perbaiki data yang tidak akurat.",
@@ -65,7 +64,7 @@ const sections = [
     icon: Globe,
     title: "6. Transfer Lintas Negara",
     body: [
-      "Server utama: Singapore (AWS ap-southeast-1).",
+      "Hosting: Vercel (edge global) + database Supabase (region Singapore).",
       "Provider AI model: data routing global (US, EU, Asia) tergantung model. Lihat openrouter.ai/privacy untuk detail.",
       "Kami tidak menjual atau menyewakan data kamu ke pihak ketiga manapun.",
     ],
@@ -89,10 +88,11 @@ export default function Privacy() {
 
         <Card className="mb-6 reveal" hover>
           <p className="text-sm text-white leading-relaxed">
-            <strong className="text-cyan">Singkat:</strong> Data kamu adalah datamu. Kami enkripsi end-to-end,
-            tidak pakai untuk training model, dan kamu bisa hapus kapan saja. Engine statistik jalan di
-            browser-mu, tidak menyentuh server kami. Untuk fitur AI generatif, hanya schema + sample
-            5 baris yang dikirim ke provider model OpenRouter.
+            <strong className="text-cyan">Singkat:</strong> Data kamu adalah datamu. Kami tidak pakai
+            datamu untuk training model Grafio, dan kamu bisa hapus kapan saja. Engine statistik jalan di
+            browser-mu, tidak menyentuh server kami. Untuk fitur AI generatif, schema + sample data
+            dikirim ke provider model via OpenRouter — provider free-tier bisa menyimpan request tersebut,
+            jadi hindari upload data yang sangat sensitif.
           </p>
         </Card>
 
@@ -128,7 +128,7 @@ export default function Privacy() {
             <div className="text-sm text-white">
               <p className="font-semibold mb-1">Pertanyaan tentang privacy?</p>
               <p className="text-muted">
-                Email <a href="mailto:privacy@grafio.app" className="text-cyan hover:underline">privacy@grafio.app</a> — kami respons dalam 48 jam kerja.
+                Email <a href="mailto:privacy@usegrafio.com" className="text-cyan hover:underline">privacy@usegrafio.com</a> — kami respons dalam 48 jam kerja.
               </p>
             </div>
           </div>

@@ -180,11 +180,9 @@ export type EngineResult = {
    */
   chartInsights?: Record<string, string>;
 
+  /** Label engine/model yang dipakai — untuk badge di dashboard & PDF. */
   _meta?: {
     model?: string;
-    input_tokens?: number;
-    output_tokens?: number;
-    cache_read_input_tokens?: number;
   };
 };
 
@@ -284,9 +282,6 @@ export async function analyzeFile(
     },
     _meta: {
       model: "Grafio Engine v1.2",
-      input_tokens: 0,
-      output_tokens: 0,
-      cache_read_input_tokens: 0,
     },
   };
 }

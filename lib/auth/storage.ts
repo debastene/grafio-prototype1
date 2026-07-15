@@ -27,6 +27,8 @@ export type UserProfile = {
   email: string;
   name: string;
   plan: Plan;
+  /** Plan yang diminta saat signup — paid plan menunggu verifikasi/pembayaran. */
+  requestedPlan?: Plan;
   createdAt: string;
   trialEndsAt?: string;
   phone?: string;
@@ -34,6 +36,15 @@ export type UserProfile = {
   nrp?: string;
   institution?: string;
 };
+
+/**
+ * Signup hanya boleh menghasilkan plan gratis. Paid plan (student/pro/custom)
+ * di-clamp ke 'free' — server-side trigger (supabase/schema.sql) juga
+ * melakukan clamp yang sama; ini sekadar menjaga UI konsisten dengan DB.
+ */
+function clampSignupPlan(plan: Plan): Plan {
+  return plan === "trial" ? "trial" : "free";
+}
 
 const CACHE_KEY = "grafio.session.cache";
 
@@ -47,6 +58,7 @@ function rowToProfile(r: ProfileRow): UserProfile {
     email: r.email,
     name: r.name,
     plan: r.plan,
+    requestedPlan: r.requested_plan ?? r.plan,
     createdAt: r.created_at,
     trialEndsAt: r.trial_ends_at ?? undefined,
     phone: r.phone ?? undefined,
@@ -128,9 +140,12 @@ export async function signup(input: SignupInput): Promise<SignupResult> {
     return { ok: false, error: "NRP dan nama institusi wajib untuk Student plan." };
   }
 
+  // Plan efektif setelah clamp — DB trigger melakukan hal yang sama server-side.
+  const effectivePlan = clampSignupPlan(input.plan);
+
   const trialDays = input.trialDays ?? 7;
   const trialEndsAt =
-    input.plan === "trial"
+    effectivePlan === "trial"
       ? new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000).toISOString()
       : undefined;
 
@@ -140,7 +155,9 @@ export async function signup(input: SignupInput): Promise<SignupResult> {
   const emailRedirectTo = `${origin}/auth/callback?next=/dashboard`;
 
   // Supabase auth signup. user_metadata is read by handle_new_user() trigger
-  // which creates the matching profile row.
+  // which creates the matching profile row. NOTE: `plan` di metadata hanyalah
+  // REQUEST — trigger meng-clamp ke free/trial dan menyimpan aslinya di
+  // profiles.requested_plan untuk follow-up admin (verifikasi/pembayaran).
   const { data, error } = await sb.auth.signUp({
     email,
     password: input.password,
@@ -175,7 +192,8 @@ export async function signup(input: SignupInput): Promise<SignupResult> {
     id: data.user.id,
     email,
     name: input.name,
-    plan: input.plan,
+    plan: effectivePlan,
+    requestedPlan: input.plan,
     createdAt: data.user.created_at ?? new Date().toISOString(),
     trialEndsAt,
     phone: input.phone,
@@ -235,7 +253,8 @@ export async function login(email: string, password: string): Promise<LoginResul
       id: data.user.id,
       email: data.user.email ?? cleanEmail,
       name: (data.user.user_metadata?.name as string) ?? cleanEmail.split("@")[0],
-      plan: (data.user.user_metadata?.plan as Plan) ?? "free",
+      // metadata.plan tidak dipercaya — clamp sama seperti DB trigger
+      plan: clampSignupPlan((data.user.user_metadata?.plan as Plan) ?? "free"),
       createdAt: data.user.created_at ?? new Date().toISOString(),
     };
     setCache(fallback);

@@ -54,7 +54,7 @@ AI-powered data analytics dashboard **berbahasa Indonesia natural**. User upload
 - v2.0 launched dengan full AI Copilot pipeline (14 Mei 2026)
 - ~1,000 monthly active users
 - Solo-founded — coding, design, growth semua by founder
-- Public website: grafio.app
+- Public website: usegrafio.com
 
 ---
 

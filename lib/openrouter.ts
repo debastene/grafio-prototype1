@@ -55,8 +55,20 @@ export const CHAINS = {
   ],
 } as const;
 
-/** Per-attempt timeout. 10s = enough untuk model cepat, fast-fail untuk lambat. */
-const DEFAULT_TIMEOUT_MS = 10_000;
+/** Per-attempt timeout. 8s = enough untuk model cepat, fast-fail untuk lambat. */
+const DEFAULT_TIMEOUT_MS = 8_000;
+
+/**
+ * Total wall-clock budget untuk SATU callWithFallback (semua attempt).
+ * Vercel Hobby membunuh function di 60s (maxDuration route) — tanpa budget ini,
+ * worst-case 6 model × 10s = 60s dan request mati di tangan Vercel, bukan di
+ * tangan kita (user dapat 504 gateway, bukan error JSON yang bisa di-handle).
+ * 45s menyisakan ruang untuk parsing + response + overhead cold start.
+ */
+const DEFAULT_TOTAL_BUDGET_MS = 45_000;
+
+/** Jangan mulai attempt baru kalau sisa budget di bawah ini. */
+const MIN_ATTEMPT_MS = 2_500;
 
 export type ChatMsg = { role: "system" | "user" | "assistant"; content: string };
 
@@ -155,16 +167,31 @@ export async function callOpenRouter({
 /**
  * Try each model in order. On 429 (or upstream-rate-limit), pause briefly
  * before next attempt so we don't burn the whole chain in a single tick.
+ *
+ * Total wall-clock dibatasi `totalBudgetMs` (default 45s) supaya chain panjang
+ * tidak pernah menabrak Vercel maxDuration 60s — lebih baik gagal dengan error
+ * JSON yang jelas daripada function di-kill dan user dapat 504 gateway.
  */
 export async function callWithFallback(
   models: readonly string[],
-  opts: Omit<CallOpts, "model">,
+  opts: Omit<CallOpts, "model"> & { totalBudgetMs?: number },
 ): Promise<{ text: string; model: string }> {
+  const { totalBudgetMs = DEFAULT_TOTAL_BUDGET_MS, ...callOpts } = opts;
+  const t0 = Date.now();
   let lastErr: unknown;
+
   for (let i = 0; i < models.length; i++) {
+    const remaining = totalBudgetMs - (Date.now() - t0);
+    if (remaining < MIN_ATTEMPT_MS) break; // budget habis — stop, jangan mulai attempt sia-sia
+
     const m = models[i];
     try {
-      return await callOpenRouter({ ...opts, model: m });
+      return await callOpenRouter({
+        ...callOpts,
+        model: m,
+        // Per-attempt timeout tidak boleh melebihi sisa budget total.
+        timeoutMs: Math.min(callOpts.timeoutMs ?? DEFAULT_TIMEOUT_MS, remaining),
+      });
     } catch (e) {
       lastErr = e;
       const status = (e as Error & { status?: number }).status;
@@ -178,7 +205,9 @@ export async function callWithFallback(
       }
     }
   }
-  throw lastErr instanceof Error ? lastErr : new Error("Semua model gagal");
+  throw lastErr instanceof Error
+    ? lastErr
+    : new Error("Semua model AI sedang sibuk / budget waktu habis. Coba lagi sebentar lagi.");
 }
 
 function sleep(ms: number) {

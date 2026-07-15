@@ -12,6 +12,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { callWithFallback, CHAINS, safeParseJSON } from "@/lib/openrouter";
+import { guardAiRoute } from "@/lib/server/aiGuard";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -155,6 +156,10 @@ Aturan:
 type Mode = "clarify" | "narrate" | "chart" | "followup" | "report" | "rename" | "chart-insights";
 
 export async function POST(req: NextRequest) {
+  // Auth + rate limit (401 kalau belum login saat Supabase aktif, 429 kalau kuota habis)
+  const denied = await guardAiRoute(req, "explain");
+  if (denied) return denied;
+
   let body: Record<string, unknown>;
   try {
     body = await req.json();

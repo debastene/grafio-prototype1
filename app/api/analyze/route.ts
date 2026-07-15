@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { callWithFallback, CHAINS, safeParseJSON } from "@/lib/openrouter";
+import { guardAiRoute } from "@/lib/server/aiGuard";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -33,6 +34,10 @@ ATURAN:
 - Jika data minim/binary, di summary jelaskan keterbatasan analisis.`;
 
 export async function POST(req: NextRequest) {
+  // Auth + rate limit (401 kalau belum login saat Supabase aktif, 429 kalau kuota habis)
+  const denied = await guardAiRoute(req, "analyze");
+  if (denied) return denied;
+
   let body: { fileName?: string; dataSample?: string; prompt?: string; fileMeta?: string };
   try {
     body = await req.json();

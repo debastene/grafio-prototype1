@@ -27,7 +27,7 @@ const sections = [
       "Analisis dataset milik sendiri atau yang kamu punya izin untuk olah.",
       "Generate report untuk keperluan internal, publikasi, atau presentasi.",
       "Share workspace ke kolega via link (kontrol akses ada di Settings).",
-      "Embed chart ke artikel/laporan dengan attribution opsional ke grafio.app.",
+      "Embed chart ke artikel/laporan dengan attribution opsional ke usegrafio.com.",
     ],
   },
   {
@@ -147,7 +147,7 @@ export default function Terms() {
             <div className="text-sm text-white">
               <p className="font-semibold mb-1">Pertanyaan legal?</p>
               <p className="text-muted">
-                Email <a href="mailto:legal@grafio.app" className="text-cyan hover:underline">legal@grafio.app</a> — tim legal kami akan respons dalam 5 hari kerja.
+                Email <a href="mailto:legal@usegrafio.com" className="text-cyan hover:underline">legal@usegrafio.com</a> — tim legal kami akan respons dalam 5 hari kerja.
               </p>
             </div>
           </div>

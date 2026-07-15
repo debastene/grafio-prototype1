@@ -172,7 +172,7 @@ export default function Landing() {
                   <div className="w-2.5 h-2.5 rounded-full bg-mint/80" />
                 </div>
                 <span className="text-[10px] uppercase tracking-widest text-muted/80 font-mono">
-                  grafio.app / dashboard
+                  usegrafio.com / dashboard
                 </span>
                 <div className="w-12" />
               </div>

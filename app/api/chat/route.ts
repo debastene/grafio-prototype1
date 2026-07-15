@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { callWithFallback, CHAINS, type ChatMsg } from "@/lib/openrouter";
+import { guardAiRoute } from "@/lib/server/aiGuard";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -119,6 +120,10 @@ ${
 }
 
 export async function POST(req: NextRequest) {
+  // Auth + rate limit (401 kalau belum login saat Supabase aktif, 429 kalau kuota habis)
+  const denied = await guardAiRoute(req, "chat");
+  if (denied) return denied;
+
   let body: { messages: ChatMsg[]; dataset?: DatasetCtx | null };
   try {
     body = await req.json();

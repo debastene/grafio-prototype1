@@ -12,6 +12,11 @@ export interface ProfileRow {
   email: string;
   name: string;
   plan: Plan;
+  /**
+   * Plan yang DIMINTA saat signup (belum tentu aktif). `plan` di-clamp
+   * server-side ke free/trial; paid plan menunggu verifikasi/pembayaran.
+   */
+  requested_plan: Plan;
   phone: string | null;
   social_media: string | null;
   nrp: string | null;

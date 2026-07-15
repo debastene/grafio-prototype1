@@ -31,7 +31,7 @@ export default function Contact() {
       form.message,
       ``,
       `--`,
-      `Dikirim via grafio.app/contact`,
+      `Dikirim via usegrafio.com/contact`,
     ];
     const body = bodyLines.join("\n");
 
@@ -185,8 +185,9 @@ export default function Contact() {
             <Card id="privacy" hover>
               <h3 className="font-syne font-bold text-white mb-2">Privacy</h3>
               <p className="text-sm text-muted leading-relaxed">
-                Data kamu dienkripsi AES-256, tidak disimpan setelah analisis selesai, dan tidak
-                pernah digunakan untuk training model AI. GDPR &amp; UU PDP compliant.
+                Analisis statistik jalan di browser-mu — file tidak diupload ke server kami. Untuk
+                fitur AI, schema + sample kecil dikirim ke provider model. Kami tidak pernah pakai
+                datamu untuk training model Grafio. Detail di halaman Privacy.
               </p>
             </Card>
           </StaggerItem>

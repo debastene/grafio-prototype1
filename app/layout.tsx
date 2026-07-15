@@ -7,7 +7,7 @@ import SmoothScrollProvider from "@/components/ui/motion/SmoothScrollProvider";
 // Default ke NEXT_PUBLIC_SITE_URL kalau ada (Vercel auto-injection),
 // fallback ke production domain. Di local dev, image akan pakai relative path.
 const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL ?? "https://grafio-jade.vercel.app";
+  process.env.NEXT_PUBLIC_SITE_URL ?? "https://usegrafio.com";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

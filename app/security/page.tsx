@@ -12,41 +12,41 @@ export const metadata = {
 const pillars = [
   {
     icon: Lock,
-    title: "Encryption Everywhere",
+    title: "Enkripsi",
     items: [
-      "TLS 1.3 untuk semua trafik (HTTPS-only, HSTS preload).",
-      "AES-256-GCM untuk data at-rest.",
-      "Key rotation otomatis tiap 90 hari via AWS KMS.",
+      "HTTPS/TLS untuk semua trafik (dikelola Vercel).",
+      "Data at-rest dienkripsi oleh infrastruktur Supabase (Postgres).",
+      "File analisis TIDAK diupload ke server — engine statistik jalan di browser kamu.",
     ],
   },
   {
     icon: Key,
     title: "Authentication",
     items: [
-      "Password: bcrypt cost 12, breach check via HaveIBeenPwned.",
-      "2FA opsional via TOTP (Google Authenticator, Authy).",
-      "Session: HTTP-only secure cookies, expire 30 hari, rotation tiap login.",
-      "SSO (Google, Microsoft, SAML) tersedia di plan Enterprise.",
+      "Password di-hash bcrypt oleh Supabase Auth — tidak pernah plaintext.",
+      "Verifikasi email saat signup.",
+      "Session via HTTP-only secure cookies (Supabase SSR).",
+      "Row Level Security: tiap user hanya bisa akses data miliknya sendiri.",
     ],
   },
   {
     icon: Server,
     title: "Infrastruktur",
     items: [
-      "Hosted di AWS Singapore (ap-southeast-1) — region utama untuk Asia Tenggara.",
-      "Edge caching via Cloudflare (DDoS protection layer 3/4/7).",
-      "Database: PostgreSQL 16 dengan automated daily backup + point-in-time recovery 7 hari.",
-      "Secret management: AWS Secrets Manager + rotation policy.",
+      "Hosting: Vercel (edge network global + DDoS protection bawaan).",
+      "Database: Supabase Postgres, region Singapore — terdekat untuk Indonesia.",
+      "Rate limiting di semua endpoint AI untuk mencegah abuse.",
+      "Secrets (API key) hanya di environment variables server — tidak pernah di client.",
     ],
   },
   {
     icon: FileCheck,
     title: "Compliance",
     items: [
-      "GDPR-ready (DPA tersedia untuk pelanggan Enterprise).",
-      "UU PDP Indonesia (UU No. 27 Tahun 2022) — fully compliant.",
-      "SOC 2 Type II audit dalam proses (target Q3 2026).",
-      "ISO 27001 readiness assessment — gap closure 80% per April 2026.",
+      "Kami startup tahap awal — belum tersertifikasi SOC 2 / ISO 27001, dan kami tidak akan mengklaim sebaliknya.",
+      "Desain mengikuti prinsip UU PDP (UU No. 27/2022) & GDPR: minimalisasi data, hak akses & hapus.",
+      "Fitur AI memakai provider model pihak ketiga (OpenRouter) — lihat halaman Privacy untuk detail aliran data.",
+      "Sertifikasi formal masuk roadmap seiring pertumbuhan pelanggan enterprise.",
     ],
   },
 ];
@@ -55,17 +55,17 @@ const responsibleDisclosure = [
   {
     icon: AlertTriangle,
     title: "Apa yang in-scope",
-    body: "Domain grafio.app, *.grafio.app, dan repo terbuka kami. Out-of-scope: serangan DDoS, social engineering ke karyawan, fisik akses kantor.",
+    body: "Domain usegrafio.com, *.usegrafio.com, dan repo terbuka kami. Out-of-scope: serangan DDoS, social engineering ke karyawan, fisik akses kantor.",
   },
   {
     icon: Bell,
     title: "Cara melaporkan",
-    body: "Email security@grafio.app dengan POC + langkah reproduce. Encrypt pakai PGP key kami (key ID 0xGRAFIO2026). Acknowledge dalam 24 jam kerja.",
+    body: "Email security@usegrafio.com dengan POC + langkah reproduce. Kami usahakan acknowledge dalam 2×24 jam kerja.",
   },
   {
     icon: FileCheck,
-    title: "Bug bounty",
-    body: "Critical: Rp 5-15jt. High: Rp 1-5jt. Medium: Rp 250-1jt. Hall of Fame untuk semua valid report.",
+    title: "Apresiasi",
+    body: "Belum ada bug bounty berbayar (kami masih tahap awal). Valid report dapat ucapan terima kasih publik di Hall of Fame + swag Grafio kalau tersedia.",
   },
 ];
 
@@ -136,7 +136,7 @@ export default function Security() {
             <div className="text-sm text-white">
               <p className="font-semibold mb-1">Security Contact</p>
               <p className="text-muted">
-                Email <a href="mailto:security@grafio.app" className="text-cyan hover:underline">security@grafio.app</a> · PGP fingerprint tersedia di /well-known/security.txt
+                Email <a href="mailto:security@usegrafio.com" className="text-cyan hover:underline">security@usegrafio.com</a>
               </p>
             </div>
           </div>
