@@ -19,12 +19,14 @@ type Props = {
  * width/height utility class (mis. `w-9 h-9`).
  */
 export default function Logo({ className = "w-9 h-9" }: Props) {
+  // Versi 256px (18 KB). File asli 4000px / 2,1 MB hanya dipakai PDF report —
+  // image optimizer dimatikan di next.config.mjs, jadi ukuran asset penting.
   return (
     <Image
-      src="/grafio-logo.png"
+      src="/grafio-logo-256.webp"
       alt="Grafio logo"
-      width={500}
-      height={500}
+      width={256}
+      height={256}
       priority
       className={className}
     />

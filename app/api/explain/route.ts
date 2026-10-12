@@ -12,7 +12,17 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { callWithFallback, CHAINS, safeParseJSON } from "@/lib/openrouter";
-import { guardAiRoute } from "@/lib/server/aiGuard";
+import {
+  aiErrorResponse,
+  authorizeAi,
+  consumeAiQuota,
+  MAX_BODY_BYTES,
+  readJsonBody,
+} from "@/lib/server/aiGuard";
+import { EXPLAIN_MODES, isObj, sanitizeExplainBody, type ExplainMode } from "@/lib/server/aiSanitize";
+
+const PII_NOTE =
+  'Catatan privasi: nilai "[disamarkan]", "[email]", "[no-hp]", "[nomor-id]", "[nomor]" adalah data pribadi yang sengaja disamarkan — jangan menebak isinya.';
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -153,24 +163,30 @@ Aturan:
 // HANDLER
 // ============================================================
 
-type Mode = "clarify" | "narrate" | "chart" | "followup" | "report" | "rename" | "chart-insights";
-
 export async function POST(req: NextRequest) {
-  // Auth + rate limit (401 kalau belum login saat Supabase aktif, 429 kalau kuota habis)
-  const denied = await guardAiRoute(req, "explain");
-  if (denied) return denied;
+  // 1. Auth (401 kalau belum login saat Supabase aktif)
+  const caller = await authorizeAi(req);
+  if (caller instanceof NextResponse) return caller;
 
-  let body: Record<string, unknown>;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
-  }
+  // 2. Body dengan batas ukuran
+  const parsed = await readJsonBody(req, MAX_BODY_BYTES.explain);
+  if (!parsed.ok) return parsed.res;
+  const raw = parsed.data;
+  if (!isObj(raw)) return NextResponse.json({ error: "Body harus object JSON" }, { status: 400 });
 
-  const mode = body.mode as Mode;
-  if (!["clarify", "narrate", "chart", "followup", "report", "rename", "chart-insights"].includes(mode)) {
+  // 3. Validasi + sanitasi per mode (dulu payload rusak → TypeError 500)
+  const mode = raw.mode as ExplainMode;
+  if (!EXPLAIN_MODES.includes(mode)) {
     return NextResponse.json({ error: "mode tidak valid" }, { status: 400 });
   }
+  const body = sanitizeExplainBody(mode, raw);
+  if (!body) {
+    return NextResponse.json({ error: `Payload untuk mode "${mode}" tidak lengkap` }, { status: 400 });
+  }
+
+  // 4. Kuota (hanya untuk request valid)
+  const limited = consumeAiQuota(caller, "explain");
+  if (limited) return limited;
 
   try {
     let result: unknown;
@@ -183,8 +199,7 @@ export async function POST(req: NextRequest) {
     else if (mode === "chart-insights") result = await doChartInsights(body);
     return NextResponse.json(result);
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "Unknown error";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return aiErrorResponse("api/explain", e);
   }
 }
 
@@ -219,8 +234,10 @@ async function doClarify(body: Record<string, unknown>) {
 Engine detected domain: ${inspection.domain.name}
 Ukuran: ${inspection.rowCount} baris × ${inspection.headers.length} kolom
 Kolom: ${cols}
-Sample 5 baris:
-${sample}`;
+Sample 3 baris:
+${sample}
+
+${PII_NOTE}`;
 
   const { text, model } = await callWithFallback(CHAINS.structured, {
     messages: [
@@ -243,10 +260,19 @@ async function doNarrate(body: Record<string, unknown>) {
     userPrompt?: string;
     userContext?: string;
     columns: { name: string; type: string; mean?: number; min?: number; max?: number }[];
-    trends?: { column: string; direction: string; pctChange: number; r2: number; startValue: number; endValue: number }[];
+    trends?: {
+      column: string;
+      direction: string;
+      pctChange: number;
+      r2: number;
+      startValue: number;
+      endValue: number;
+      pValue?: number;
+      significant?: boolean;
+    }[];
     correlations?: { a: string; b: string; r: number; direction: string; strength: string }[];
     anomalies?: { column: string; count: number; topZscore?: number }[];
-    kpis?: { label: string; value: string; change: number }[];
+    kpis?: { label: string; value: string; change: number | null }[];
     sample?: Record<string, unknown>[];
   };
 
@@ -273,12 +299,12 @@ async function doNarrate(body: Record<string, unknown>) {
 
   if (ctx.trends?.length) {
     sections.push(
-      "\nTrends terdeteksi engine:",
+      "\nTrends terdeteksi engine (sudah diagregasi per periode & diuji; 'datar' = TIDAK signifikan, jangan sebut sebagai tren):",
       ctx.trends
         .slice(0, 5)
         .map(
           (t) =>
-            `- ${t.column}: ${t.direction} ${t.pctChange.toFixed(1)}% (${t.startValue} → ${t.endValue}, R²=${t.r2.toFixed(2)})`,
+            `- ${t.column}: ${t.direction} ${t.pctChange.toFixed(1)}% menurut garis tren (${t.startValue} → ${t.endValue}, R²=${t.r2.toFixed(2)}${t.pValue !== undefined ? `, p=${t.pValue < 0.001 ? "<0.001" : t.pValue.toFixed(3)}` : ""})`,
         )
         .join("\n"),
     );
@@ -304,13 +330,14 @@ async function doNarrate(body: Record<string, unknown>) {
   if (ctx.kpis?.length) {
     sections.push(
       "\nKPI engine:",
-      ctx.kpis.map((k) => `- ${k.label}: ${k.value} (Δ${k.change}%)`).join("\n"),
+      ctx.kpis.map((k) => `- ${k.label}: ${k.value}${k.change === null ? " (tanpa tren signifikan)" : ` (Δ${k.change}%)`}`).join("\n"),
     );
   }
   if (ctx.sample?.length) {
     sections.push(
-      "\nSample 5 baris:",
+      "\nSample 5 baris (diambil tersebar di seluruh data):",
       ctx.sample.slice(0, 5).map((r) => JSON.stringify(r)).join("\n"),
+      PII_NOTE,
     );
   }
 
@@ -377,7 +404,7 @@ async function doReport(body: Record<string, unknown>) {
     trends?: { column: string; direction: string; pctChange: number; r2: number }[];
     correlations?: { a: string; b: string; r: number; strength: string }[];
     anomalies?: { column: string; count: number }[];
-    kpis?: { label: string; value: string; change: number }[];
+    kpis?: { label: string; value: string; change: number | null }[];
     insights?: { type: string; title: string; body: string }[];
   };
 
@@ -414,7 +441,7 @@ async function doReport(body: Record<string, unknown>) {
   if (ctx.kpis?.length) {
     sections.push(
       "\nKPI:",
-      ctx.kpis.map((k) => `- ${k.label}: ${k.value} (Δ${k.change}%)`).join("\n"),
+      ctx.kpis.map((k) => `- ${k.label}: ${k.value}${k.change === null ? " (tanpa tren signifikan)" : ` (Δ${k.change}%)`}`).join("\n"),
     );
   }
   if (ctx.insights?.length) {
@@ -544,6 +571,8 @@ ${ctx.headers.map((h) => `- ${h}`).join("\n")}
 
 Sample 3 baris (urut sesuai header):
 ${sampleStr || "(tidak ada sample)"}
+
+${PII_NOTE}
 
 Sarankan nama yang lebih friendly.`;
 

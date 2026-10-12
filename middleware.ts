@@ -55,7 +55,8 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    // Apply to everything except static assets & API routes
+    // Semua route kecuali static assets (API route ikut, supaya sesi Supabase
+    // tetap ter-refresh sebelum route handler membaca cookie).
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|woff|woff2|ttf)).*)",
   ],
 };

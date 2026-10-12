@@ -1,30 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { callWithFallback, CHAINS, type ChatMsg } from "@/lib/openrouter";
-import { guardAiRoute } from "@/lib/server/aiGuard";
+import { callWithFallback, CHAINS } from "@/lib/openrouter";
+import {
+  aiErrorResponse,
+  authorizeAi,
+  consumeAiQuota,
+  MAX_BODY_BYTES,
+  readJsonBody,
+} from "@/lib/server/aiGuard";
+import { isObj, sanitizeChatDataset, sanitizeChatMessages, type ChatDataset } from "@/lib/server/aiSanitize";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
-
-type DatasetCtx = {
-  fileName: string;
-  rowCount: number;
-  columnCount: number;
-  domain?: string;
-  userContext?: string;
-  conclusion?: string;
-  columns: {
-    name: string;
-    type: string;
-    nulls?: number;
-    mean?: number;
-    median?: number;
-    min?: number | string;
-    max?: number | string;
-    topValues?: { value: string; count: number }[];
-  }[];
-  sample?: Record<string, unknown>[];
-  insights?: { type: string; title: string; body: string }[];
-};
 
 const SYSTEM_BASE = `Kamu Grafio AI Copilot — asisten analitik data berbahasa Indonesia untuk orang AWAM (bukan data scientist).
 
@@ -53,9 +39,11 @@ PERHITUNGAN:
 KESIMPULAN AI:
 - Kalau user minta opini ("menurut kamu…", "bagaimana", "apa kesimpulanmu"), berikan SUDUT PANDANG aktif berdasarkan data — bukan ringkasan generik. Boleh hipotetis ("kemungkinan besar…", "ini mengindikasikan…").
 
-FORMAT: kalimat natural mengalir, tanpa heading/bullet markdown kecuali user spesifik minta list.`;
+FORMAT: kalimat natural mengalir, tanpa heading/bullet markdown kecuali user spesifik minta list.
 
-function datasetToContext(ds: DatasetCtx): string {
+PRIVASI: nilai "[disamarkan]", "[email]", "[no-hp]", "[nomor-id]", "[nomor]" adalah data pribadi yang sengaja disamarkan Grafio. Jangan menebak isinya.`;
+
+function datasetToContext(ds: ChatDataset): string {
   const cols = ds.columns
     .slice(0, 30)
     .map((c) => {
@@ -120,34 +108,46 @@ ${
 }
 
 export async function POST(req: NextRequest) {
-  // Auth + rate limit (401 kalau belum login saat Supabase aktif, 429 kalau kuota habis)
-  const denied = await guardAiRoute(req, "chat");
-  if (denied) return denied;
+  // 1. Auth (401 kalau belum login saat Supabase aktif)
+  const caller = await authorizeAi(req);
+  if (caller instanceof NextResponse) return caller;
 
-  let body: { messages: ChatMsg[]; dataset?: DatasetCtx | null };
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  // 2. Body dengan batas ukuran
+  const parsed = await readJsonBody(req, MAX_BODY_BYTES.chat);
+  if (!parsed.ok) return parsed.res;
+  const body = parsed.data;
+  if (!isObj(body)) return NextResponse.json({ error: "Body harus object JSON" }, { status: 400 });
+
+  // 3. Validasi: hanya role user/assistant (tidak bisa menyuntik "system"),
+  //    maks 20 pesan × 2.000 karakter, pesan terakhir dari user.
+  const messages = sanitizeChatMessages(body.messages);
+  if (!messages) {
+    return NextResponse.json(
+      { error: "messages harus berisi percakapan user/assistant dengan pesan terakhir dari user" },
+      { status: 400 },
+    );
+  }
+  const dataset = body.dataset == null ? null : sanitizeChatDataset(body.dataset);
+  if (body.dataset != null && !dataset) {
+    return NextResponse.json({ error: "dataset tidak valid" }, { status: 400 });
   }
 
-  if (!Array.isArray(body.messages) || !body.messages.length) {
-    return NextResponse.json({ error: "messages kosong" }, { status: 400 });
-  }
+  // 4. Kuota (hanya untuk request valid)
+  const limited = consumeAiQuota(caller, "chat");
+  if (limited) return limited;
 
-  const system = body.dataset
-    ? `${SYSTEM_BASE}\n\n${datasetToContext(body.dataset)}`
+  const system = dataset
+    ? `${SYSTEM_BASE}\n\n${datasetToContext(dataset)}`
     : `${SYSTEM_BASE}\n\nBelum ada dataset aktif. Minta user upload data dulu.`;
 
   try {
     const { text, model } = await callWithFallback(CHAINS.chat, {
-      messages: [{ role: "system", content: system }, ...body.messages],
+      messages: [{ role: "system", content: system }, ...messages],
       temperature: 0.6,
       maxTokens: 700,
     });
     return NextResponse.json({ reply: text.trim(), model });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return aiErrorResponse("api/chat", err);
   }
 }

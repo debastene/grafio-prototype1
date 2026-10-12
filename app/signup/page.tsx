@@ -10,10 +10,19 @@ import {
 } from "lucide-react";
 import { signup, Plan } from "@/lib/auth/storage";
 
+/** Plan yang boleh dipilih dari URL (?plan=…). Nilai lain → free. */
+const SELECTABLE_PLANS: Plan[] = ["free", "student", "pro", "custom"];
+
+function planFromParam(v: string | null): Plan {
+  return SELECTABLE_PLANS.includes(v as Plan) ? (v as Plan) : "free";
+}
+
 function SignupForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const initialPlan = (params.get("plan") as Plan) || "free";
+  // Dulu nilai mentah dipakai → /signup?plan=apa_saja membuat halaman crash
+  // (planMeta[plan] undefined).
+  const initialPlan = planFromParam(params.get("plan"));
 
   const [plan, setPlan] = useState<Plan>(initialPlan);
   const [form, setForm] = useState({
@@ -28,10 +37,7 @@ function SignupForm() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const fromUrl = params.get("plan") as Plan;
-    if (fromUrl && ["free", "student", "pro", "custom"].includes(fromUrl)) {
-      setPlan(fromUrl);
-    }
+    setPlan(planFromParam(params.get("plan")));
   }, [params]);
 
   const onSubmit = async (e: React.FormEvent) => {

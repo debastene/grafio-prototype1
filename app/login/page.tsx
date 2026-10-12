@@ -1,14 +1,25 @@
 "use client";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Logo from "@/components/ui/Logo";
 import Button from "@/components/ui/Button";
 import { Mail, Lock, Github, ArrowRight, AlertTriangle } from "lucide-react";
 import { login } from "@/lib/auth/storage";
+import { safeNextPath } from "@/lib/auth/safeRedirect";
 
 export default function Login() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-bgDeep" />}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
+  // Middleware & halaman kuis mengirim ?next=… — dulu diabaikan (selalu ke /dashboard).
+  const next = safeNextPath(useSearchParams().get("next"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -25,7 +36,7 @@ export default function Login() {
         setError(res.error);
         return;
       }
-      router.push("/dashboard");
+      router.push(next);
     } finally {
       setLoading(false);
     }

@@ -13,13 +13,15 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { safeNextPath } from "@/lib/auth/safeRedirect";
 
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const code = url.searchParams.get("code");
-  const next = url.searchParams.get("next") ?? "/dashboard";
+  // Hanya path internal — cegah open redirect ke domain lain.
+  const next = safeNextPath(url.searchParams.get("next"));
   const errorDescription = url.searchParams.get("error_description");
 
   // Build absolute URL for redirect (req.nextUrl preserves origin)
