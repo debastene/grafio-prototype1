@@ -3,6 +3,8 @@ import Footer from "@/components/ui/Footer";
 import Card from "@/components/ui/Card";
 import SectionHeader from "@/components/ui/SectionHeader";
 import { ScrollText, UserCheck, CreditCard, Ban, Scale, RefreshCw, Mail } from "lucide-react";
+import { CONTACT_EMAIL, SITE_HOST, SUPPORTED_FORMATS_LABEL } from "@/lib/site";
+import { MAX_UPLOAD_LABEL } from "@/lib/engine";
 
 export const metadata = {
   title: "Terms of Service — Grafio",
@@ -27,7 +29,7 @@ const sections = [
       "Analisis dataset milik sendiri atau yang kamu punya izin untuk olah.",
       "Generate report untuk keperluan internal, publikasi, atau presentasi.",
       "Share workspace ke kolega via link (kontrol akses ada di Settings).",
-      "Embed chart ke artikel/laporan dengan attribution opsional ke usegrafio.com.",
+      `Embed chart ke artikel/laporan dengan attribution opsional ke ${SITE_HOST}.`,
     ],
   },
   {
@@ -45,7 +47,7 @@ const sections = [
     icon: CreditCard,
     title: "4. Free vs Paid Plan",
     body: [
-      "Free plan: rate limit 50 AI request/hari, max 50MB/file, watermark di PDF export.",
+      `Free plan: fitur AI butuh login dan dibatasi per 6 jam (5 analisis, 40 enrichment, 60 chat), file maks ${MAX_UPLOAD_LABEL} (${SUPPORTED_FORMATS_LABEL}), watermark di PDF export.`,
       "Pro plan: unlimited AI request (fair use), max 500MB/file, no watermark, priority support.",
       "Enterprise: custom limit, SSO, audit log, SLA 99.9%, dedicated support.",
       "Pembayaran: Stripe (kartu) atau bank transfer (invoice ≥ Rp 5 juta).",
@@ -147,7 +149,7 @@ export default function Terms() {
             <div className="text-sm text-white">
               <p className="font-semibold mb-1">Pertanyaan legal?</p>
               <p className="text-muted">
-                Email <a href="mailto:legal@usegrafio.com" className="text-cyan hover:underline">legal@usegrafio.com</a> — tim legal kami akan respons dalam 5 hari kerja.
+                Email <a href={`mailto:${CONTACT_EMAIL}?subject=LEGAL`} className="text-cyan hover:underline">{CONTACT_EMAIL}</a> — tim legal kami akan respons dalam 5 hari kerja.
               </p>
             </div>
           </div>

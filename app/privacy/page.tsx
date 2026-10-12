@@ -3,6 +3,7 @@ import Footer from "@/components/ui/Footer";
 import Card from "@/components/ui/Card";
 import SectionHeader from "@/components/ui/SectionHeader";
 import { Shield, Lock, Database, Eye, Trash2, Globe, Mail } from "lucide-react";
+import { CONTACT_EMAIL, SUPPORTED_FORMATS_LABEL } from "@/lib/site";
 
 export const metadata = {
   title: "Privacy Policy — Grafio",
@@ -14,9 +15,9 @@ const sections = [
     icon: Lock,
     title: "1. Data yang Kami Kumpulkan",
     body: [
-      "Data file yang kamu upload (CSV / Excel / JSON / dll) untuk dianalisis.",
-      "Informasi akun: email, nama, password ter-hash (bcrypt cost 12).",
-      "Metadata teknis: timestamp upload, user agent, IP address (untuk rate-limit & deteksi abuse).",
+      `Data file yang kamu upload (${SUPPORTED_FORMATS_LABEL}) untuk dianalisis — diproses di browser kamu.`,
+      "Informasi akun: email, nama, password (di-hash oleh Supabase Auth, tidak pernah kami lihat). Plan Student/Trial: NRP, institusi, atau nomor HP yang kamu isi.",
+      "Metadata teknis di log hosting (Vercel): waktu request, user agent, IP address — untuk keamanan & deteksi abuse.",
       "Tidak ada cookies pelacakan pihak ketiga. Tidak ada Google Analytics / Facebook Pixel.",
     ],
   },
@@ -25,8 +26,8 @@ const sections = [
     title: "2. Bagaimana Data Diproses",
     body: [
       "Parsing & analisis statistik berjalan client-side di browser kamu — engine tidak meninggalkan device.",
-      "Untuk fitur AI (Copilot, narasi insight, clarification), schema + sample data (maksimal ±8 KB, bukan file penuh) dikirim ke OpenRouter (provider model gratis).",
-      "Provider model gratis (Qwen, NVIDIA, Meta, Google) mungkin menyimpan request untuk audit / training mereka — gunakan paket berbayar untuk privasi penuh.",
+      "Untuk fitur AI (Copilot, narasi insight, clarification) — hanya saat kamu login — yang dikirim ke OpenRouter adalah nama kolom, statistik ringkas, dan maksimal 5 baris sampel. Sebelum dikirim, data pribadi DISAMARKAN otomatis di browser: seluruh isi kolom seperti nama/email/no HP/alamat/NIK, plus pola email, nomor HP, NIK, dan nomor rekening di kolom lain.",
+      "Penyamaran otomatis tidak sempurna (mis. nama orang di kolom teks bebas). Provider model gratis (Qwen, NVIDIA, Meta, Google) bisa menyimpan request untuk audit / training — jangan upload data yang sangat sensitif.",
       "Tidak ada bagian data kamu yang digunakan untuk training model Grafio.",
     ],
   },
@@ -35,29 +36,29 @@ const sections = [
     title: "3. Enkripsi & Keamanan",
     body: [
       "Transit: HTTPS/TLS untuk semua komunikasi.",
-      "Storage: project yang kamu save disimpan di Supabase (Postgres) — dienkripsi at-rest oleh infrastruktur Supabase.",
+      "Storage: saat kamu klik Save Project, ringkasan analisis + maksimal 100 baris pertama data hasil cleaning disimpan di Supabase (Postgres, terenkripsi at-rest oleh infrastruktur Supabase).",
       "Password: di-hash oleh Supabase Auth (bcrypt), tidak pernah disimpan plaintext.",
-      "Akses data dibatasi Row Level Security — tiap user hanya bisa baca/tulis miliknya sendiri.",
+      "Akses data dibatasi Row Level Security + hak per kolom — tiap user hanya bisa baca/tulis miliknya sendiri, dan tidak bisa mengubah plan/credits sendiri.",
     ],
   },
   {
     icon: Trash2,
     title: "4. Retensi & Penghapusan",
     body: [
-      "File yang diupload diproses di memory browser selama sesi aktif saja. Reload = data hilang.",
+      "File yang diupload diproses di memory browser. Hasil analisis (maks 200 baris) disimpan sementara di sessionStorage tab ini supaya tidak hilang saat reload, dan terhapus saat tab ditutup.",
       "Project yang kamu save manual tersimpan sampai kamu hapus sendiri — bisa dihapus kapan saja dari halaman Projects.",
-      "Right to be forgotten: kirim email ke privacy@usegrafio.com — kami hapus dalam 7 hari kerja.",
+      `Right to be forgotten: kirim email ke ${CONTACT_EMAIL} — kami hapus akun & data dalam 7 hari kerja.`,
     ],
   },
   {
     icon: Eye,
-    title: "5. Hak Kamu (mengacu prinsip GDPR + UU PDP)",
+    title: "5. Hak Kamu (mengacu UU PDP No. 27/2022 & prinsip GDPR)",
     body: [
       "Akses: minta export semua data yang kami punya tentangmu.",
       "Koreksi: minta kami perbaiki data yang tidak akurat.",
       "Hapus: minta hapus permanen.",
       "Portabilitas: terima data dalam format machine-readable (JSON).",
-      "Batalkan persetujuan: opt-out dari processing AI fitur kapan saja.",
+      "Batalkan persetujuan: fitur AI hanya aktif saat login. Tanpa login, engine statistik tetap jalan penuh di browser tanpa mengirim data ke provider AI.",
     ],
   },
   {
@@ -82,7 +83,7 @@ export default function Privacy() {
         <SectionHeader
           eyebrow="Legal"
           title="Privacy Policy"
-          description="Berlaku efektif 1 Januari 2026 · Versi 2.1 · Kami percaya privasi adalah hak, bukan fitur."
+          description="Berlaku efektif 12 Oktober 2026 · Versi 2.2 · Kami percaya privasi adalah hak, bukan fitur."
         />
         </div>
 
@@ -90,8 +91,9 @@ export default function Privacy() {
           <p className="text-sm text-white leading-relaxed">
             <strong className="text-cyan">Singkat:</strong> Data kamu adalah datamu. Kami tidak pakai
             datamu untuk training model Grafio, dan kamu bisa hapus kapan saja. Engine statistik jalan di
-            browser-mu, tidak menyentuh server kami. Untuk fitur AI generatif, schema + sample data
-            dikirim ke provider model via OpenRouter — provider free-tier bisa menyimpan request tersebut,
+            browser-mu, tidak menyentuh server kami. Untuk fitur AI generatif (saat login), nama kolom,
+            statistik ringkas, dan beberapa baris sampel — dengan data pribadi disamarkan otomatis —
+            dikirim ke provider model via OpenRouter. Provider free-tier bisa menyimpan request tersebut,
             jadi hindari upload data yang sangat sensitif.
           </p>
         </Card>
@@ -128,7 +130,7 @@ export default function Privacy() {
             <div className="text-sm text-white">
               <p className="font-semibold mb-1">Pertanyaan tentang privacy?</p>
               <p className="text-muted">
-                Email <a href="mailto:privacy@usegrafio.com" className="text-cyan hover:underline">privacy@usegrafio.com</a> — kami respons dalam 48 jam kerja.
+                Email <a href={`mailto:${CONTACT_EMAIL}?subject=PRIVACY`} className="text-cyan hover:underline">{CONTACT_EMAIL}</a> — kami respons dalam 48 jam kerja.
               </p>
             </div>
           </div>

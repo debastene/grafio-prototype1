@@ -68,7 +68,7 @@ export const ORBIT_TERMS: OrbitTerm[] = [
     id: "anomaly",
     label: "Anomaly",
     accent: "cyan",
-    body: "Titik data yang menyimpang dari pola normal. Grafio pakai Z-score (≥3σ) + IQR analysis untuk deteksi outlier dengan akurat, lalu kasih konteks: apakah ini noise yang perlu dibersihkan, atau \"data emas\" (mis. lonjakan kampanye Ramadhan yang sebenarnya valid).\n\nKamu yang putuskan per-anomali: perbaiki atau pertahankan. AI cuma rekomendasi.",
+    body: "Titik data yang menyimpang dari pola normal. Grafio pakai pagar Tukey 1,5×IQR + modified z-score (median/MAD) yang tahan terhadap outlier itu sendiri, lalu kasih konteks: apakah ini noise yang perlu dibersihkan, atau \"data emas\" (mis. lonjakan kampanye Ramadhan yang sebenarnya valid).\n\nKamu yang putuskan per-anomali: perbaiki atau pertahankan. AI cuma rekomendasi.",
   },
   {
     id: "forecast",

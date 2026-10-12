@@ -127,7 +127,7 @@ export default function TrialPage() {
             <Link href="/signup" className="text-cyan hover:underline">Plan reguler</Link>
           </p>
           <p className="text-center text-[10px] text-muted/60 mt-3">
-            Prototype: data tersimpan di localStorage browser ini.
+            Akun disimpan di Supabase. Nomor HP & link sosmed hanya dipakai untuk verifikasi trial.
           </p>
         </div>
       </div>

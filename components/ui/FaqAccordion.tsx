@@ -7,7 +7,7 @@ import { useReducedMotion } from "./motion/useReducedMotion";
 const faqs = [
   {
     q: "Apakah data saya aman?",
-    a: "Ya, semua data dienkripsi dan tidak kami simpan setelah proses selesai. Parsing & cleaning jalan di browser kamu — hanya statistik agregat yang dikirim ke AI untuk narasi.",
+    a: "File kamu diproses di browser dan tidak diupload ke server kami. Untuk narasi AI (saat login), yang dikirim hanya nama kolom, statistik ringkas, dan maks 5 baris sampel yang data pribadinya (nama, email, no HP, NIK, alamat) sudah disamarkan otomatis. Data baru tersimpan di cloud kalau kamu klik Save Project (ringkasan + maks 100 baris).",
   },
   {
     q: "Bisa cancel kapan saja?",
@@ -15,7 +15,7 @@ const faqs = [
   },
   {
     q: "Format file apa saja yang didukung?",
-    a: "CSV, TSV, Excel (XLS/XLSX), JSON, JSONL, Parquet, Feather, Arrow, Pickle, HDF5, ORC, Avro, SQLite, DuckDB, dan banyak lagi — max 50MB per file.",
+    a: "CSV, TSV, TXT (berpemisah), JSON, dan JSONL — maks 5 MB per file. Excel/Parquet belum didukung langsung: ekspor dulu ke CSV (Excel: File → Save As → CSV).",
   },
   {
     q: "Apakah ada free trial untuk Pro?",

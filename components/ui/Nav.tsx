@@ -41,8 +41,8 @@ const featuresMenu = {
     {
       label: "By output",
       items: [
-        { icon: Eye, label: "Anomaly Detection", href: "/features", desc: "Z-score, IQR, drift" },
-        { icon: FileDown, label: "PDF & PPT Export", href: "/features", desc: "Laporan siap presentasi" },
+        { icon: Eye, label: "Anomaly Detection", href: "/features", desc: "IQR, MAD, robust z" },
+        { icon: FileDown, label: "PDF Report & Export", href: "/features", desc: "Laporan siap presentasi" },
         { icon: ShieldCheck, label: "Privacy by Design", href: "/security", desc: "Parsing di browser" },
       ],
     },

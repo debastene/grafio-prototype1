@@ -7,7 +7,7 @@ import SmoothScrollProvider from "@/components/ui/motion/SmoothScrollProvider";
 // Default ke NEXT_PUBLIC_SITE_URL kalau ada (Vercel auto-injection),
 // fallback ke production domain. Di local dev, image akan pakai relative path.
 const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL ?? "https://usegrafio.com";
+  process.env.NEXT_PUBLIC_SITE_URL ?? "https://grafio-jade.vercel.app";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -16,10 +16,10 @@ export const metadata: Metadata = {
     template: "%s · Grafio",
   },
   description:
-    "AI analytics workspace untuk analyst, scientist & founder Indonesia. Upload CSV, Excel, JSON, atau Parquet — Grafio pilihkan chart terbaik, menulis insight bersudut pandang, & susun dashboard interaktif dalam hitungan detik.",
+    "AI analytics workspace untuk analyst, scientist & founder Indonesia. Upload CSV atau JSON — Grafio memprofil data, menguji tren & korelasi secara statistik, dan menulis insight Bahasa Indonesia dalam hitungan detik.",
   keywords: [
     "data visualization", "AI analytics", "dashboard Indonesia",
-    "CSV", "Parquet", "Excel", "data analyst", "data scientist",
+    "CSV", "JSON", "statistik", "data analyst", "data scientist",
     "BI tool", "insight AI", "Grafio",
   ],
   authors: [{ name: "Grafio" }],

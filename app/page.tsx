@@ -24,6 +24,7 @@ import {
   ShieldCheck, BarChart3, MessageSquare, Wand2, Workflow,
   FileDown, Layers, Eye, ArrowRight, Star, Check,
 } from "lucide-react";
+import { SITE_HOST } from "@/lib/site";
 
 // OrbitStar 3D = bespoke interactive globe-style centerpiece. Drag untuk
 // rotate, click label untuk info panel. Lazy-load client-only karena three.js
@@ -41,17 +42,23 @@ const features: { icon: any; title: string; desc: string; accent: FeatureAccent 
   { icon: Brain, title: "AI Auto Chart", desc: "Algoritma kami memilih visualisasi paling tepat berdasarkan tipe & distribusi datamu — line untuk time-series, doughnut untuk distribusi, scatter untuk korelasi, semua otomatis.", accent: "cyan" },
   { icon: MessageSquare, title: "Natural Language Query", desc: "Tanya ke datamu pakai bahasa biasa: \"penjualan tertinggi minggu ini?\". AI memahami konteks, jawab dengan angka aktual dari datasetmu, bukan jawaban generik.", accent: "violet" },
   { icon: Wand2, title: "Insight Generator", desc: "AI menulis ringkasan, trend, dan rekomendasi aksi otomatis dalam Bahasa Indonesia — dengan sudut pandang, bukan jargon statistik kering.", accent: "mint" },
-  { icon: Workflow, title: "Auto Pipeline", desc: "Cleaning per-anomali, type-inference, dan join multi-file otomatis tanpa nulis kode. Kamu yang putuskan apa yang dipertahankan, AI yang eksekusi.", accent: "warning" },
-  { icon: Eye, title: "Anomaly Detection", desc: "Deteksi outlier, drift, dan pola tidak biasa dengan z-score & IQR analysis — lengkap dengan penjelasan dampaknya ke analisismu.", accent: "coral" },
-  { icon: FileDown, title: "PDF & PPT Export", desc: "Hasilkan laporan profesional siap presentasi dalam 1 klik. Ditulis seperti analyst senior menjelaskan ke direksi, bukan dump tabel.", accent: "cyan" },
-  { icon: Layers, title: "Dashboard Builder", desc: "Drag-drop chart untuk bikin dashboard interaktif yang bisa di-share. Susun KPI, grafik, dan narasi dalam satu kanvas.", accent: "purple" },
-  { icon: ShieldCheck, title: "Privacy First", desc: "Parsing & cleaning jalan di browser kamu. Hanya statistik agregat yang dikirim ke AI untuk narasi — raw data tidak pernah meninggalkan device.", accent: "mint" },
+  { icon: Workflow, title: "Auto Pipeline", desc: "Cleaning per-anomali dan type-inference otomatis tanpa nulis kode — termasuk tanggal format Indonesia (DD/MM) dan nama bulan. Kamu yang putuskan apa yang dipertahankan.", accent: "warning" },
+  { icon: Eye, title: "Anomaly Detection", desc: "Deteksi outlier, drift, dan pola tidak biasa dengan pagar IQR & modified z-score (MAD) — lengkap dengan penjelasan dampaknya ke analisismu.", accent: "coral" },
+  { icon: FileDown, title: "PDF Report & Export Data", desc: "Laporan PDF siap presentasi dalam 1 klik, plus download data hasil cleaning (CSV/TSV/JSON) lengkap dengan catatan perubahannya.", accent: "cyan" },
+  { icon: Layers, title: "Dashboard Otomatis", desc: "KPI, grafik, dan narasi tersusun dalam satu kanvas — ganti jenis chart sesukamu dan simpan sebagai project.", accent: "purple" },
+  { icon: ShieldCheck, title: "Privacy First", desc: "Parsing & cleaning jalan di browser kamu. Ke AI hanya statistik ringkas + beberapa baris sampel yang data pribadinya disamarkan otomatis.", accent: "mint" },
 ];
 
-const integrations = [
-  "CSV", "Excel", "JSON", "Parquet", "Feather", "Arrow", "Pickle",
-  "HDF5", "ORC", "Avro", "SQLite", "DuckDB", "PostgreSQL",
-  "BigQuery", "Snowflake", "MongoDB", "S3", "Notebook",
+// live = benar-benar bisa dibaca engine hari ini; sisanya roadmap (ditandai "segera").
+const integrations: { name: string; live: boolean }[] = [
+  { name: "CSV", live: true },
+  { name: "TSV", live: true },
+  { name: "JSON", live: true },
+  { name: "JSONL", live: true },
+  { name: "TXT", live: true },
+  { name: "Excel", live: false },
+  { name: "Parquet", live: false },
+  { name: "PostgreSQL", live: false },
 ];
 
 const stats = [
@@ -172,7 +179,7 @@ export default function Landing() {
                   <div className="w-2.5 h-2.5 rounded-full bg-mint/80" />
                 </div>
                 <span className="text-[10px] uppercase tracking-widest text-muted/80 font-mono">
-                  usegrafio.com / dashboard
+                  {SITE_HOST} / dashboard
                 </span>
                 <div className="w-12" />
               </div>
@@ -319,11 +326,17 @@ export default function Landing() {
                   >
                     <span className="text-muted/40 mr-3">·</span>
                     <span className="text-white/85 group-hover:text-cyan transition-colors duration-300 font-medium tracking-wide">
-                      {it}
+                      {it.name}
                     </span>
-                    <span className="text-[9px] font-bold text-mint/80 bg-mint/10 border border-mint/25 px-1 py-px rounded leading-none">
-                      ✓
-                    </span>
+                    {it.live ? (
+                      <span className="text-[9px] font-bold text-mint/80 bg-mint/10 border border-mint/25 px-1 py-px rounded leading-none">
+                        ✓
+                      </span>
+                    ) : (
+                      <span className="text-[9px] font-bold text-muted bg-bgElevated border border-borderColor px-1 py-px rounded leading-none">
+                        segera
+                      </span>
+                    )}
                   </span>
                 ))}
               </MarqueeRow>
@@ -382,8 +395,8 @@ export default function Landing() {
               num: "01",
               icon: FileSpreadsheet,
               title: "Upload",
-              desc: "Drop CSV, Excel, Parquet, JSON, atau koneksi langsung ke database.",
-              tag: "50MB max · 18+ format",
+              desc: "Drop CSV, TSV, atau JSON. Excel? Simpan sebagai CSV dulu.",
+              tag: "maks 5 MB · CSV / TSV / JSON",
             },
             {
               num: "02",
@@ -396,7 +409,7 @@ export default function Landing() {
               num: "03",
               icon: BarChart3,
               title: "Insight & Export",
-              desc: "Dashboard interaktif, narasi bersudut pandang, PDF/PPT siap presentasi.",
+              desc: "Dashboard interaktif, narasi bersudut pandang, laporan PDF siap presentasi.",
               tag: "12+ chart adaptive",
             },
           ].map((s) => (

@@ -106,17 +106,17 @@ const uniqueFeatures = [
   {
     icon: Database,
     title: "Format Lengkap",
-    desc: "CSV, TSV, Excel, JSON, JSONL. Engine local-first — data tidak meninggalkan browser saat parsing & cleaning.",
+    desc: "CSV, TSV, TXT, JSON, JSONL (maks 5 MB). Engine local-first — data tidak meninggalkan browser saat parsing & cleaning.",
   },
   {
     icon: ShieldCheck,
     title: "Privacy by Design",
-    desc: "Parsing & cleaning jalan di browser kamu. Hanya statistik agregat yang dikirim ke AI untuk narasi — bukan raw data.",
+    desc: "Parsing & cleaning jalan di browser kamu. Ke AI hanya statistik ringkas + maks 5 baris sampel, dengan nama/email/no HP/NIK disamarkan otomatis.",
   },
   {
     icon: Zap,
     title: "Engine Lokal Statistik",
-    desc: "OLS regression, Pearson correlation, Z-score, IQR — semua jalan di browser. Hasil deterministic, cepat, gratis.",
+    desc: "OLS + uji signifikansi, korelasi Pearson + koreksi FDR, outlier IQR & MAD, ANOVA — semua jalan di browser. Hasil deterministic, cepat, gratis.",
   },
   {
     icon: Layers,

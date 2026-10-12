@@ -9,6 +9,7 @@ import Reveal from "@/components/ui/motion/Reveal";
 import { Stagger, StaggerItem } from "@/components/ui/motion/Stagger";
 import MagneticButton from "@/components/ui/motion/MagneticButton";
 import { Mail, MessageSquare, Building2, Send, Check } from "lucide-react";
+import { CONTACT_EMAIL, SITE_HOST } from "@/lib/site";
 
 export default function Contact() {
   const [form, setForm] = useState({ name: "", email: "", company: "", message: "", topic: "Sales" });
@@ -31,12 +32,12 @@ export default function Contact() {
       form.message,
       ``,
       `--`,
-      `Dikirim via usegrafio.com/contact`,
+      `Dikirim via ${SITE_HOST}/contact`,
     ];
     const body = bodyLines.join("\n");
 
     // Build mailto URL
-    const mailto = `mailto:grafio.founder@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    const mailto = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     // Open user's email client
     window.location.href = mailto;
 

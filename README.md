@@ -29,6 +29,11 @@ tampil tapi nunjukin pesan setup). Setup gratis ~5 menit:
    - Di Supabase dashboard: **SQL Editor** → **New query**
    - Buka file `supabase/schema.sql` di repo ini → copy-paste ke editor → **Run**
    - Bikin 2 tabel (`profiles`, `projects`) + trigger auto-create profile + RLS policies
+   - Lalu jalankan `supabase/quiz_schema.sql` (fitur kuis)
+   - **Database lama (dibuat sebelum Okt 2026)?** Jalankan juga, berurutan:
+     `supabase/patches/2026-07-15-plan-whitelist.sql` lalu
+     `supabase/patches/2026-10-12-security-audit.sql` — patch idempoten,
+     aman diulang. Query verifikasi ada di header file patch.
 
 3. **Copy credentials**
    - **Settings** → **API**
@@ -43,13 +48,25 @@ tampil tapi nunjukin pesan setup). Setup gratis ~5 menit:
 5. **Set env vars di Vercel**
    - Project dashboard di Vercel → Settings → Environment Variables
    - Tambahkan `NEXT_PUBLIC_SUPABASE_URL` dan `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - Untuk cron kuis: `SUPABASE_SERVICE_ROLE_KEY` dan `CRON_SECRET`
+     (service role key JANGAN pernah diberi prefix `NEXT_PUBLIC_`)
+   - Opsional: `NEXT_PUBLIC_CONTACT_EMAIL`, `NEXT_PUBLIC_SITE_URL`
    - Redeploy
 
 ### Security model
 
-- RLS (Row Level Security) aktif untuk `profiles` & `projects` tables
-- User cuma bisa SELECT/INSERT/UPDATE/DELETE row milik sendiri
-- `anon` key aman untuk di-expose ke client karena RLS yang melindungi
+- RLS (Row Level Security) aktif untuk `profiles`, `projects`, `quizzes`, `quiz_attempts`
+- RLS membatasi **baris**, bukan kolom — karena itu hak UPDATE `profiles`
+  dibatasi per kolom (`name`, `phone`, `social_media`). `plan`, `credits`,
+  `trial_ends_at` hanya bisa diubah service role / admin.
+- Kuis hanya diakses lewat fungsi `SECURITY DEFINER` (`list_week_quizzes`,
+  `get_quiz_public`, `submit_quiz`) yang memakai `auth.uid()`; kunci jawaban
+  tidak pernah dikirim sebelum submit; `award_quiz_credits` hanya service role.
+- `anon` key aman untuk di-expose ke client **selama** RLS + grant di atas benar
+- Route AI: wajib login → batas ukuran body → validasi/sanitasi → rate limit
+  (lihat `lib/server/aiGuard.ts`, `lib/server/aiSanitize.ts`)
+- Data pribadi disamarkan sebelum dikirim ke provider AI (`lib/privacy/pii.ts`)
+- Security headers (CSP, frame-ancestors, nosniff, dll) di `next.config.mjs`
 - Email + password disimpan + dikelola Supabase Auth (bcrypt hashing)
 
 ## Setup OpenRouter (AI Copilot)

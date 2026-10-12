@@ -1,31 +1,22 @@
 "use client";
 import { useRef, useState } from "react";
-import { UploadCloud, FileSpreadsheet, FileJson, FileText, Database, Sparkles, X } from "lucide-react";
+import { UploadCloud, FileSpreadsheet, FileJson, FileText, Sparkles, X } from "lucide-react";
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL, SUPPORTED_EXTENSIONS } from "@/lib/engine";
 
-const ACCEPTED = [
-  ".csv", ".tsv", ".xlsx", ".xls", ".xlsm",
-  ".json", ".jsonl", ".ndjson",
-  ".parquet", ".feather", ".arrow",
-  ".sav", ".dta", ".sas7bdat",
-  ".pkl", ".pickle",
-  ".h5", ".hdf5",
-  ".orc", ".avro",
-  ".txt", ".log",
-  ".db", ".sqlite", ".duckdb",
-  ".ipynb", ".pdf",
-];
-
-const ACCEPT_ATTR = ACCEPTED.join(",");
+// Hanya format yang BENAR-BENAR bisa diparse engine. Dulu daftar ini memuat
+// Excel/Parquet/SQLite/SPSS/… yang lalu gagal di langkah berikutnya.
+const ACCEPT_ATTR = SUPPORTED_EXTENSIONS.map((e) => `.${e}`).join(",");
 
 const FILE_ICON: Record<string, any> = {
-  csv: FileSpreadsheet, tsv: FileSpreadsheet, xlsx: FileSpreadsheet, xls: FileSpreadsheet, xlsm: FileSpreadsheet,
+  csv: FileSpreadsheet, tsv: FileSpreadsheet,
   json: FileJson, jsonl: FileJson, ndjson: FileJson,
-  txt: FileText, log: FileText, ipynb: FileText, pdf: FileText,
-  parquet: Database, feather: Database, arrow: Database,
-  pkl: Database, pickle: Database, h5: Database, hdf5: Database,
-  db: Database, sqlite: Database, duckdb: Database, orc: Database, avro: Database,
-  sav: FileSpreadsheet, dta: FileSpreadsheet, sas7bdat: FileSpreadsheet,
+  txt: FileText,
 };
+
+function isSupported(name: string): boolean {
+  const ext = (name.split(".").pop() ?? "").toLowerCase();
+  return (SUPPORTED_EXTENSIONS as readonly string[]).includes(ext);
+}
 
 type Props = { onDemo?: () => void; onFiles?: (files: File[]) => void };
 
@@ -46,18 +37,26 @@ export default function UploadZone({ onDemo, onFiles }: Props) {
     const arr = Array.from(incoming);
     const ok: File[] = [];
     const tooBig: string[] = [];
+    const unsupported: string[] = [];
     arr.forEach((f) => {
-      if (f.size > 50 * 1024 * 1024) {
+      if (!isSupported(f.name)) {
+        unsupported.push(f.name);
+        return;
+      }
+      if (f.size > MAX_UPLOAD_BYTES) {
         tooBig.push(f.name);
         return;
       }
       ok.push(f);
     });
-    if (tooBig.length) {
-      setError(`File terlalu besar (max 50MB): ${tooBig.join(", ")}`);
-    } else {
-      setError(null);
+    const problems: string[] = [];
+    if (tooBig.length) problems.push(`File terlalu besar (maks ${MAX_UPLOAD_LABEL}): ${tooBig.join(", ")}`);
+    if (unsupported.length) {
+      problems.push(
+        `Format belum didukung: ${unsupported.join(", ")} — ekspor dulu ke CSV (Excel: File → Save As → CSV).`,
+      );
     }
+    setError(problems.length ? problems.join(" · ") : null);
     const next = [...files, ...ok];
     setFiles(next);
     onFiles?.(next);
@@ -113,11 +112,11 @@ export default function UploadZone({ onDemo, onFiles }: Props) {
             {drag ? "Lepaskan di sini!" : "Drag & drop atau klik untuk upload"}
           </p>
           <p className="text-sm text-muted mt-1.5">
-            Semua format data analyst &amp; data scientist didukung
+            Data tabular teks — Excel? Simpan sebagai CSV dulu
           </p>
         </div>
         <div className="relative flex flex-wrap gap-1.5 justify-center max-w-xl">
-          {["CSV", "TSV", "Excel", "JSON", "Parquet", "Feather", "Arrow", "Pickle", "HDF5", "ORC", "Avro", "SQLite", "DuckDB", "SPSS", "Stata", "SAS", "Notebook"].map((t) => (
+          {["CSV", "TSV", "TXT", "JSON", "JSONL"].map((t) => (
             <span
               key={t}
               className="px-2.5 py-1 bg-bgElevated/70 backdrop-blur-sm border border-borderColor text-[11px] text-muted rounded-full font-mono"
@@ -150,7 +149,9 @@ export default function UploadZone({ onDemo, onFiles }: Props) {
             </button>
           )}
         </div>
-        <p className="relative text-xs text-muted">Max 50MB per file · enkripsi end-to-end</p>
+        <p className="relative text-xs text-muted">
+          Maks {MAX_UPLOAD_LABEL} per file · diproses di browser · data pribadi disamarkan sebelum ke AI
+        </p>
       </div>
 
       {error && (

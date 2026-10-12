@@ -3,6 +3,7 @@ import Footer from "@/components/ui/Footer";
 import Card from "@/components/ui/Card";
 import SectionHeader from "@/components/ui/SectionHeader";
 import { Shield, Lock, Key, Server, AlertTriangle, FileCheck, Bell, Mail } from "lucide-react";
+import { CONTACT_EMAIL, SITE_HOST } from "@/lib/site";
 
 export const metadata = {
   title: "Security — Grafio",
@@ -16,7 +17,7 @@ const pillars = [
     items: [
       "HTTPS/TLS untuk semua trafik (dikelola Vercel).",
       "Data at-rest dienkripsi oleh infrastruktur Supabase (Postgres).",
-      "File analisis TIDAK diupload ke server — engine statistik jalan di browser kamu.",
+      "File analisis TIDAK diupload ke server — engine statistik jalan di browser kamu. Sampel untuk AI disamarkan dulu (nama, email, no HP, NIK, alamat).",
     ],
   },
   {
@@ -25,8 +26,8 @@ const pillars = [
     items: [
       "Password di-hash bcrypt oleh Supabase Auth — tidak pernah plaintext.",
       "Verifikasi email saat signup.",
-      "Session via HTTP-only secure cookies (Supabase SSR).",
-      "Row Level Security: tiap user hanya bisa akses data miliknya sendiri.",
+      "Session di cookie Supabase (SameSite=Lax, hanya lewat HTTPS karena HSTS). Cookie ini terbaca JavaScript (bukan HttpOnly), jadi kami memasang Content-Security-Policy untuk menekan risiko XSS.",
+      "Row Level Security + hak per kolom: tiap user hanya bisa akses data miliknya, dan tidak bisa mengubah plan/credits sendiri.",
     ],
   },
   {
@@ -35,7 +36,7 @@ const pillars = [
     items: [
       "Hosting: Vercel (edge network global + DDoS protection bawaan).",
       "Database: Supabase Postgres, region Singapore — terdekat untuk Indonesia.",
-      "Rate limiting di semua endpoint AI untuk mencegah abuse.",
+      "Endpoint AI wajib login, ukuran & bentuk payload divalidasi, lalu di-rate-limit per user.",
       "Secrets (API key) hanya di environment variables server — tidak pernah di client.",
     ],
   },
@@ -55,12 +56,12 @@ const responsibleDisclosure = [
   {
     icon: AlertTriangle,
     title: "Apa yang in-scope",
-    body: "Domain usegrafio.com, *.usegrafio.com, dan repo terbuka kami. Out-of-scope: serangan DDoS, social engineering ke karyawan, fisik akses kantor.",
+    body: `Aplikasi di ${SITE_HOST} beserta API-nya. Out-of-scope: serangan DDoS, social engineering, dan pengujian yang merusak/menghapus data pengguna lain.`,
   },
   {
     icon: Bell,
     title: "Cara melaporkan",
-    body: "Email security@usegrafio.com dengan POC + langkah reproduce. Kami usahakan acknowledge dalam 2×24 jam kerja.",
+    body: `Email ${CONTACT_EMAIL} dengan subjek "SECURITY", POC + langkah reproduce. Kami usahakan acknowledge dalam 2×24 jam kerja.`,
   },
   {
     icon: FileCheck,
@@ -136,7 +137,7 @@ export default function Security() {
             <div className="text-sm text-white">
               <p className="font-semibold mb-1">Security Contact</p>
               <p className="text-muted">
-                Email <a href="mailto:security@usegrafio.com" className="text-cyan hover:underline">security@usegrafio.com</a>
+                Email <a href={`mailto:${CONTACT_EMAIL}?subject=SECURITY`} className="text-cyan hover:underline">{CONTACT_EMAIL}</a>
               </p>
             </div>
           </div>

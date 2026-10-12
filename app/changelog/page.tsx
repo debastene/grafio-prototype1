@@ -11,6 +11,20 @@ export const metadata = {
 
 const releases = [
   {
+    version: "v2.1.0",
+    date: "12 Oktober 2026",
+    headline: "Audit Keamanan & Ketepatan Statistik",
+    changes: [
+      { type: "fix", text: "Keamanan database: user tidak bisa lagi mengubah plan/credits sendiri; kunci jawaban kuis tidak lagi terkirim ke browser; penilaian kuis & pemberian credits terjadi atomik di server." },
+      { type: "fix", text: "Fitur AI wajib login; payload divalidasi & dibatasi ukurannya; error upstream tidak lagi diteruskan mentah ke browser." },
+      { type: "feature", text: "Privasi: nama, email, no HP, NIK, alamat disamarkan otomatis di browser sebelum sampel data dikirim ke provider AI." },
+      { type: "improvement", text: "Tren hanya dihitung bila ada kolom waktu, diagregasi per periode, diuji signifikansinya (p-value), dan forecast disertai rentang 95%." },
+      { type: "improvement", text: "Korelasi diuji + dikoreksi Benjamini-Hochberg; outlier memakai pagar IQR & modified z-score; variansi memakai pembagi n−1." },
+      { type: "fix", text: "Tanggal DD/MM/YYYY & nama bulan Indonesia terbaca benar; kolom seperti GDP, populasi, 'paid_amount', 'humidity' tidak lagi salah dianggap ID." },
+      { type: "fix", text: "Klarifikasi: format yang didukung CSV, TSV, TXT, JSON, JSONL (maks 5 MB). Klaim Excel/Parquet/50 MB/enkripsi end-to-end di versi sebelumnya tidak akurat dan sudah dihapus." },
+    ],
+  },
+  {
     version: "v2.0.0",
     date: "14 Mei 2026",
     headline: "Full AI Copilot",

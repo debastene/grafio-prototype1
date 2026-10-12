@@ -3,6 +3,7 @@ import Footer from "@/components/ui/Footer";
 import Card from "@/components/ui/Card";
 import SectionHeader from "@/components/ui/SectionHeader";
 import { Briefcase, MapPin, Clock, Sparkles, Mail, Coffee, Globe, Heart } from "lucide-react";
+import { CONTACT_EMAIL } from "@/lib/site";
 
 export const metadata = {
   title: "Careers — Grafio",
@@ -94,7 +95,7 @@ export default function Careers() {
                   </div>
                 </div>
                 <a
-                  href={`mailto:careers@usegrafio.com?subject=Apply: ${encodeURIComponent(r.title)}`}
+                  href={`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(`Apply: ${r.title}`)}`}
                   className="px-4 py-2 rounded-md border border-cyan text-cyan hover:bg-cyan hover:text-bgDeep hover:shadow-glow transition-all duration-300 ease-glide text-sm font-semibold flex-shrink-0"
                 >
                   Apply →
@@ -125,7 +126,7 @@ export default function Careers() {
               <p className="font-semibold mb-1">Tidak ada role yang cocok?</p>
               <p className="text-muted">
                 Kirim CV + 1 paragraf kenapa kamu mau di Grafio ke{" "}
-                <a href="mailto:careers@usegrafio.com" className="text-cyan hover:underline">careers@usegrafio.com</a>. Kalau cocok, kami buatkan role baru.
+                <a href={`mailto:${CONTACT_EMAIL}?subject=Careers`} className="text-cyan hover:underline">{CONTACT_EMAIL}</a>. Kalau cocok, kami buatkan role baru.
               </p>
             </div>
           </div>
