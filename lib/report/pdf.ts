@@ -23,6 +23,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { EngineResult } from "@/lib/engine";
+import { SITE_HOST } from "@/lib/site";
 
 // ============================================================
 // LOGO CACHE
@@ -291,7 +292,7 @@ class Paper {
   }
 
   /** KPI strip — 4 metric boxes in a row, clean editorial style. */
-  kpiStrip(kpis: { label: string; value: string; change?: number }[]): void {
+  kpiStrip(kpis: { label: string; value: string; change?: number | null }[]): void {
     if (kpis.length === 0) return;
     const items = kpis.slice(0, 4);
     const gap = 12;
@@ -588,7 +589,7 @@ class Paper {
       this.doc.setFont("helvetica", "normal");
       this.doc.setFontSize(7.5);
       this.doc.setTextColor(...TH.inkFaint);
-      const cap = "usegrafio.com";
+      const cap = SITE_HOST;
       this.doc.text(cap, PAGE_W - MARGIN_X - this.doc.getTextWidth(cap), PAGE_H - 35);
       // Caption (left)
       this.doc.text("See Beyond The Numbers", MARGIN_X, PAGE_H - 35);
@@ -764,7 +765,7 @@ function buildCover(p: Paper, result: EngineResult, logo: LogoAsset | null) {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7.5);
   doc.setTextColor(...TH.inkFaint);
-  const proc = `Dianalisis dalam ${result.durationMs.toFixed(0)} ms  ·  usegrafio.com`;
+  const proc = `Dianalisis dalam ${result.durationMs.toFixed(0)} ms  ·  ${SITE_HOST}`;
   doc.text(proc, PAGE_W - MARGIN_X - doc.getTextWidth(proc), PAGE_H - 60);
 
   doc.setFont("times", "italic");
@@ -825,9 +826,14 @@ function buildSummary(p: Paper, result: EngineResult, aiReport: AiReportContent 
     { label: "Kolom Numerik", value: `${result.numericColCount} dari ${result.columnCount}` },
     { label: "Kolom Kategorikal", value: String(result.categoricalColCount) },
     { label: "Kolom Tanggal", value: String(result.dateColCount) },
-    { label: "Tren Statistik", value: `${result.analysis.trends.length} terdeteksi` },
-    { label: "Pasangan Korelasi", value: `${result.analysis.correlations.length} signifikan (|r| >= 0.3)` },
-    { label: "Outlier (z >= 2.5)", value: String(result.analysis.anomalies.reduce((a, x) => a + x.count, 0)) },
+    {
+      label: "Tren Statistik",
+      value: !result.analysis.timeAxis && result.analysis.trends.length === 0
+        ? "tidak dihitung (tanpa kolom waktu)"
+        : `${result.analysis.trends.filter((t) => t.direction !== "datar").length} signifikan dari ${result.analysis.trends.length} diuji`,
+    },
+    { label: "Pasangan Korelasi", value: `${result.analysis.correlations.length} signifikan (|r| >= 0.3, q < 0.05)` },
+    { label: "Outlier (di luar 1.5x IQR)", value: String(result.analysis.anomalies.reduce((a, x) => a + x.count, 0)) },
     { label: "Format Angka", value: result.numberFormat.toUpperCase() },
     { label: "Total Observasi", value: result.rowCount.toLocaleString("id") },
   ]);
@@ -894,7 +900,7 @@ function buildCorrelations(p: Paper, result: EngineResult) {
   p.newPage();
   p.section(
     "Analisis Korelasi",
-    "Koefisien Pearson untuk pasangan variabel numerik dengan |r| >= 0.3.",
+    "Koefisien Pearson untuk pasangan numerik dengan |r| >= 0.3 yang signifikan setelah koreksi Benjamini-Hochberg (q < 0.05).",
   );
 
   for (const c of result.analysis.correlations.slice(0, 10)) {
@@ -911,29 +917,37 @@ function buildCorrelations(p: Paper, result: EngineResult) {
 
 function buildTrends(p: Paper, result: EngineResult) {
   p.newPage();
-  p.section("Tren dan Anomali", "Arah pertumbuhan jangka pendek (OLS) dan outlier statistik (z-score >= 2.5).");
+  p.section(
+    "Tren dan Anomali",
+    "Tren: OLS pada data yang diagregasi per periode, uji slope (alpha 5%). Outlier: di luar pagar Tukey 1.5x IQR.",
+  );
 
   if (result.analysis.trends.length > 0) {
     p.subhead("Tren Terdeteksi");
     p.table({
-      head: ["Metrik", "Arah", "% Perubahan", "R-kuadrat", "Awal", "Akhir", "Forecast 3 langkah"],
+      head: ["Metrik", "Arah", "% (garis tren)", "R-kuadrat", "p-value", "Periode", "Forecast 3 periode"],
       body: result.analysis.trends.slice(0, 8).map((t) => [
         t.column,
         t.direction,
         `${t.pctChange >= 0 ? "+" : ""}${t.pctChange.toFixed(1)}%`,
         t.r2.toFixed(2),
-        fmtNum(t.startValue),
-        fmtNum(t.endValue),
+        t.pValue !== undefined ? (t.pValue < 0.001 ? "<0.001" : t.pValue.toFixed(3)) : "-",
+        t.periods !== undefined ? String(t.periods) : "-",
         t.forecast.length ? t.forecast.map((v) => fmtNum(v, 1)).join(", ") : "-",
       ]),
       align: ["left", "left", "right", "right", "right", "right", "left"],
     });
+  } else if (!result.analysis.timeAxis) {
+    p.paragraph(
+      "Dataset tidak memiliki kolom waktu (tanggal/tahun/bulan), sehingga tren tidak dihitung. Urutan baris di file bukan urutan waktu.",
+      { italic: true, color: TH.inkMuted, size: 9.5 },
+    );
   }
 
   if (result.analysis.anomalies.length > 0) {
     p.subhead("Outlier Statistik");
     p.table({
-      head: ["Variabel", "Jumlah Outlier", "Z-max", "Nilai Ekstrem", "Lokasi"],
+      head: ["Variabel", "Jumlah Outlier", "z robust", "Nilai Ekstrem", "Lokasi"],
       body: result.analysis.anomalies.slice(0, 10).map((a) => [
         a.column,
         String(a.count),
@@ -981,7 +995,7 @@ function buildRecommendations(p: Paper, result: EngineResult, aiReport: AiReport
       const a = result.analysis.anomalies[0];
       recs.push({
         title: `Verifikasi outlier pada ${a.column}`,
-        body: `Terdeteksi ${a.count} nilai dengan z-score >= 2.5. Periksa apakah berasal dari kesalahan input, kasus istimewa yang sah, atau sinyal pasar yang patut diinvestigasi.`,
+        body: `Terdeteksi ${a.count} nilai di luar pagar 1.5x IQR. Periksa apakah berasal dari kesalahan input, kasus istimewa yang sah, atau sinyal pasar yang patut diinvestigasi.`,
       });
     }
     if (result.analysis.correlations.find((c) => Math.abs(c.r) > 0.7)) {

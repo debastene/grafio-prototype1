@@ -81,11 +81,9 @@ export default function ProjectDetail() {
       : [];
     return result.kpis.slice(0, 4).map((k, i) => ({
       ...k,
-      spark: thumb.length >= 3
-        ? thumb
-        : Array.from({ length: 8 }, (_, j) =>
-            20 + Math.round(Math.sin(i + j / 2) * 15 + j * (k.change >= 0 ? 2 : -1.2)),
-          ),
+      // Snapshot lama tidak punya `spark` per KPI; jangan karang data — kosongkan.
+      change: k.change ?? null,
+      spark: k.spark ?? (i === 0 && thumb.length >= 3 ? thumb : []),
       color: SPARK_COLORS[i % SPARK_COLORS.length],
     }));
   }, [result, project]);
@@ -592,7 +590,7 @@ export default function ProjectDetail() {
                 <div className="flex items-center gap-2 mb-3">
                   <AlertTriangle className="w-4 h-4 text-warning" />
                   <h4 className="font-syne font-semibold text-white text-sm">
-                    Outliers Terdeteksi (Z-score ≥ 2.5)
+                    Outliers Terdeteksi (di luar pagar 1,5×IQR)
                   </h4>
                 </div>
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -600,7 +598,7 @@ export default function ProjectDetail() {
                     <div key={i} className="rounded-lg border border-borderColor bg-bgSurface/60 p-3">
                       <p className="font-syne text-white text-sm mb-1">{a.column}</p>
                       <p className="text-xs text-muted">
-                        {a.count} outlier · Z-max{" "}
+                        {a.count} outlier · z robust{" "}
                         <span className="font-mono text-warning">{a.topExample?.zscore.toFixed(2)}</span>
                         {a.topExample && (
                           <>

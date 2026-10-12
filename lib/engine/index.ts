@@ -17,7 +17,20 @@ import { detectDomain, Domain } from "./domain";
 import { detectNumberFormat, applyNumberFormat, FormatDetection } from "./numberFormat";
 import { detectIssues, applyCleaning, computeHealthScore, CleaningIssue, CleaningPlan, DEFAULT_PLAN } from "./clean";
 
-const TEXT_EXTS = new Set(["csv", "tsv", "txt", "log", "json", "jsonl", "ndjson"]);
+/** Format yang BENAR-BENAR bisa diparse engine (teks). */
+export const SUPPORTED_EXTENSIONS = ["csv", "tsv", "txt", "json", "jsonl", "ndjson"] as const;
+const TEXT_EXTS = new Set<string>([...SUPPORTED_EXTENSIONS, "log"]);
+
+/**
+ * Batas ukuran file. Seluruh file dibaca & diparse di browser (tidak ada
+ * pemotongan diam-diam) — file lebih besar ditolak dengan pesan jelas.
+ * Dulu hanya 5 MB pertama yang dibaca sementara UI menjanjikan 50 MB:
+ * hasilnya sampel "kepala file" yang bias, tanpa user tahu.
+ */
+// 5 MB ≈ 150 ribu baris: diparse ±3 detik & ±400 MB memori di browser. Lebih
+// besar dari ini berisiko membuat tab crash di laptop/HP kelas menengah.
+export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+export const MAX_UPLOAD_LABEL = "5 MB";
 
 export type ProgressFn = (stage: string) => void;
 
@@ -43,9 +56,18 @@ export type Inspection = {
   durationMs: number;
 };
 
-async function readAsText(file: File, maxBytes = 5 * 1024 * 1024): Promise<string> {
-  const blob = file.slice(0, maxBytes);
-  return await blob.text();
+function assertFileAcceptable(file: File): void {
+  if (file.size > MAX_UPLOAD_BYTES) {
+    const mb = (file.size / (1024 * 1024)).toFixed(1);
+    throw new Error(
+      `File ${mb} MB melebihi batas ${MAX_UPLOAD_LABEL}. Ambil sampel acak/stratified dulu (mis. di Excel/pandas) atau pecah per periode, lalu upload ulang.`,
+    );
+  }
+}
+
+async function readAsText(file: File): Promise<string> {
+  assertFileAcceptable(file);
+  return await file.text();
 }
 
 export async function quickInspect(
@@ -57,7 +79,7 @@ export async function quickInspect(
 
   if (!TEXT_EXTS.has(ext)) {
     throw new Error(
-      `Format ${ext.toUpperCase()} (binary) belum didukung di prototype. Konversi ke CSV / JSON dulu.`,
+      `Format ${ext.toUpperCase() || "ini"} belum didukung. Grafio saat ini membaca ${SUPPORTED_EXTENSIONS.map((e) => e.toUpperCase()).join(", ")} — ekspor ke CSV dulu (Excel: File → Save As → CSV).`,
     );
   }
 

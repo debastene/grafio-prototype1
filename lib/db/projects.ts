@@ -52,6 +52,7 @@ function trimSnapshot(result: EngineResult): Json {
       ...p,
       // Drop heavy fields not used by dashboard rendering
       numericVector: undefined,
+      timeVector: undefined,
     })),
   };
   return JSON.parse(JSON.stringify(trimmed)) as Json;

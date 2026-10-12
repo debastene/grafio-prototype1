@@ -187,13 +187,14 @@ describe("computeHealthScore", () => {
 });
 
 describe("recommendPlan", () => {
-  it("ada missing → imputeMissing mean_median; ada outlier → capOutliers", () => {
+  it("ada missing → imputeMissing mean_median; outlier TIDAK otomatis di-cap (bisa data sah)", () => {
     const plan = recommendPlan([
       { kind: "missing", column: "a", count: 3, pct: 0.3, severity: "medium" },
       { kind: "outliers", column: "b", count: 2, severity: "mild" },
     ]);
     expect(plan.imputeMissing).toBe("mean_median");
-    expect(plan.capOutliers).toBe(true);
+    // REGRESI UJI-BROWSER: populasi India (1,37 M) dulu di-cap jadi 241 jt → Σ populasi salah.
+    expect(plan.capOutliers).toBe(false);
   });
 
   it("tidak ada issue → plan konservatif (no dedup, no impute)", () => {

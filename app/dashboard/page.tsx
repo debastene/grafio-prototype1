@@ -231,11 +231,12 @@ function DashboardContent() {
   // ===== KPI cards
   const kpiCards = useMemo(() => {
     if (mode === "ai" && aiResult?.kpis?.length) {
+      // Sparkline = deret per periode yang SEBENARNYA (dari engine). Dulu
+      // gelombang sinus sintetis — terlihat seperti data padahal karangan.
       return aiResult.kpis.slice(0, 4).map((k, i) => ({
         ...k,
-        spark: Array.from({ length: 8 }, (_, j) =>
-          20 + Math.round(Math.sin(i + j / 2) * 15 + j * (k.change >= 0 ? 2 : -1.2)),
-        ),
+        change: k.change ?? null,
+        spark: k.spark ?? [],
         color: SPARK_COLORS[i % SPARK_COLORS.length],
       }));
     }
@@ -673,6 +674,10 @@ function DashboardContent() {
                     centerLabel={aiResult.charts.distribution.data.reduce((a, b) => a + b, 0).toLocaleString("id")}
                   />
                 </ChartFrame>
+              ) : mode !== "demo" ? (
+                // Mode AI tanpa data yang cocok: JANGAN tampilkan grafik demo (data karangan)
+                // di samping hasil analisis asli — tampilkan alasan kenapa grafik kosong.
+                <NoChartData title="Distribusi kategori" reason="Butuh kolom kategori dengan 2+ nilai berbeda." />
               ) : (
                 <ChartFrame
                   id="chart-channel-mix"
@@ -733,6 +738,10 @@ function DashboardContent() {
                     series={[{ label: "Data points", data: aiResult.charts.scatter.points }]}
                   />
                 </ChartFrame>
+              ) : mode !== "demo" ? (
+                // Mode AI tanpa data yang cocok: JANGAN tampilkan grafik demo (data karangan)
+                // di samping hasil analisis asli — tampilkan alasan kenapa grafik kosong.
+                <NoChartData title="Scatter korelasi" reason="Tidak ada pasangan kolom numerik yang korelasinya signifikan (|r| ≥ 0,3, q < 0,05)." />
               ) : (
                 <ChartFrame
                   id="chart-price-conversion"
@@ -807,6 +816,10 @@ function DashboardContent() {
                     series={aiResult.charts.stacked.series}
                   />
                 </ChartFrame>
+              ) : mode !== "demo" ? (
+                // Mode AI tanpa data yang cocok: JANGAN tampilkan grafik demo (data karangan)
+                // di samping hasil analisis asli — tampilkan alasan kenapa grafik kosong.
+                <NoChartData title="Perbandingan multi-metrik" reason="Butuh kolom kategori dan minimal 2 kolom numerik." />
               ) : (
                 <>
                   <ChartFrame
@@ -1075,7 +1088,7 @@ function DashboardContent() {
                 <div className="flex items-center gap-2 mb-3">
                   <AlertTriangle className="w-4 h-4 text-warning" />
                   <h4 className="font-syne font-semibold text-white text-sm">
-                    Outliers Terdeteksi (Z-score ≥ 2.5)
+                    Outliers Terdeteksi (di luar pagar 1,5×IQR)
                   </h4>
                 </div>
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -1083,7 +1096,7 @@ function DashboardContent() {
                     <div key={i} className="rounded-lg border border-borderColor bg-bgSurface/60 p-3">
                       <p className="font-syne text-white text-sm mb-1">{a.column}</p>
                       <p className="text-xs text-muted">
-                        {a.count} outlier · Z-max{" "}
+                        {a.count} outlier · z robust{" "}
                         <span className="font-mono text-warning">
                           {a.topExample?.zscore.toFixed(2)}
                         </span>
@@ -1397,6 +1410,16 @@ function CorrHeatmap({
           </Fragment>
         ))}
       </div>
+    </div>
+  );
+}
+
+function NoChartData({ title, reason }: { title: string; reason: string }) {
+  return (
+    <div className="glass rounded-xl p-5 border border-dashed border-borderColor flex flex-col justify-center min-h-[200px]">
+      <p className="text-[10px] uppercase tracking-widest text-muted mb-1">{title}</p>
+      <p className="text-sm text-white font-syne font-semibold mb-1">Tidak ditampilkan untuk dataset ini</p>
+      <p className="text-xs text-muted leading-relaxed">{reason}</p>
     </div>
   );
 }

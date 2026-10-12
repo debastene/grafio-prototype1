@@ -2,10 +2,10 @@
  * Convert analysis output into chart-ready data series for the dashboard.
  */
 
-import { Analysis } from "./analyze";
+import { Analysis, aggregationFor, formatTimeLabel, resolveTimeX } from "./analyze";
 import { ColProfile } from "./profile";
 import { ParsedRow } from "./parse";
-import { freq, summarize, clean } from "./stats";
+import { aggregateSeries, freq, summarize, clean } from "./stats";
 
 export type SeriesData = {
   labels: string[];
@@ -45,25 +45,19 @@ export type ChartBundle = {
   recommended: string[];
 };
 
-function formatLabel(v: unknown, isDate: boolean): string {
-  if (v === null || v === undefined) return "";
-  if (isDate && typeof v === "number") {
-    const d = new Date(v);
-    if (!Number.isNaN(d.getTime())) {
-      return d.toLocaleDateString("id-ID", { year: "numeric", month: "short", day: "numeric" });
-    }
-  }
-  return String(v);
-}
-
 /**
  * Build a histogram from a numeric column.
  */
 function buildHistogram(name: string, values: number[], bins = 12): HistogramData {
   const cleaned = clean(values);
   if (cleaned.length === 0) return { column: name, bins: [] };
-  const min = Math.min(...cleaned);
-  const max = Math.max(...cleaned);
+  // Jangan Math.min(...arr): spread >~120k elemen = "Maximum call stack size exceeded".
+  let min = Infinity;
+  let max = -Infinity;
+  for (const v of cleaned) {
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
   if (min === max) {
     return {
       column: name,
@@ -112,52 +106,38 @@ export function shapeCharts(
   let histogram: HistogramData | null = null;
   const wantedType = analysis.primaryChartType;
 
-  if (wantedType === "line" && (dateCol || primaryNumeric.length > 0)) {
-    if (dateCol) {
-      const datePr = profiles.find((p) => p.name === dateCol)!;
-      const indexed: { x: number; idx: number }[] = [];
-      for (let i = 0; i < rows.length; i++) {
-        const v = datePr.numericVector?.[i];
-        if (typeof v === "number" && Number.isFinite(v)) indexed.push({ x: v, idx: i });
+  if (wantedType === "line" && analysis.timeAxis) {
+    // Deret waktu: SATU titik per periode (agregasi sum/mean), bukan per baris.
+    // Dulu tiap baris diplot apa adanya → data transaksi jadi garis zig-zag.
+    const axis = analysis.timeAxis;
+    const timeX = resolveTimeX(profiles, axis);
+    const MAX_POINTS = 60;
+    let labels: string[] = [];
+    let bucketed = false;
+    const series = primaryNumeric.map((col) => {
+      const pr = profiles.find((p) => p.name === col)!;
+      const agg = aggregationFor(pr);
+      const s = aggregateSeries(timeX, pr.numericVector ?? [], agg);
+      let xs = s.x;
+      let ys = s.y;
+      if (xs.length > MAX_POINTS) {
+        const b = rebucket(xs, ys, MAX_POINTS, agg);
+        xs = b.x;
+        ys = b.y;
+        bucketed = true;
       }
-      indexed.sort((a, b) => a.x - b.x);
-      const bucketed = indexed.length > 30 ? bucketize(indexed, 30) : indexed;
-      const labels = bucketed.map((b) => formatLabel(b.x, true));
-      const series = primaryNumeric.map((col) => {
-        const pr = profiles.find((p) => p.name === col)!;
-        const data = bucketed.map((b) => {
-          const v = pr.numericVector?.[b.idx];
-          return typeof v === "number" && Number.isFinite(v) ? v : 0;
-        });
-        return { label: col, data };
-      });
-      primary = { labels, series };
-      primaryTitle = `Tren — ${primaryNumeric.join(" · ")} dari waktu`;
-    } else {
-      // Row-index time series
-      const sampleRows = Math.min(rows.length, 30);
-      const step = Math.max(1, Math.floor(rows.length / sampleRows));
-      const labels: string[] = [];
-      const series = primaryNumeric.slice(0, 3).map((col, idx) => {
-        const pr = profiles.find((p) => p.name === col)!;
-        const data: number[] = [];
-        for (let i = 0; i < rows.length; i += step) {
-          const v = pr.numericVector?.[i];
-          data.push(typeof v === "number" && Number.isFinite(v) ? v : 0);
-          if (idx === 0) labels.push(`#${i + 1}`);
-        }
-        return { label: col, data };
-      });
-      primary = { labels, series };
-      primaryTitle = `Tren ${primaryNumeric.join(", ")} per baris`;
-    }
+      if (labels.length === 0) labels = xs.map((x) => formatTimeLabel(x, axis.kind));
+      return { label: agg === "sum" ? `Total ${col}` : `Rata-rata ${col}`, data: ys, column: col };
+    });
+    primary = { labels, series: series.map(({ label, data }) => ({ label, data })) };
+    primaryTitle = `Tren — ${primaryNumeric.join(" · ")} per periode`;
 
-    // Build forecast extension from primary trend
-    const topTrend = analysis.trends[0];
-    if (topTrend && topTrend.forecast.length && primary.series.length > 0) {
-      const main = primary.series.find((s) => s.label === topTrend.column);
+    // Forecast extension dari tren utama (hanya kalau signifikan & skala periode sama)
+    const topTrend = analysis.trends.find((t) => t.significant && t.forecast.length);
+    if (topTrend && !bucketed) {
+      const main = series.find((s) => s.column === topTrend.column);
       if (main) {
-        const fLabels = [...primary.labels];
+        const fLabels = [...labels];
         const fData = [...main.data];
         for (let i = 0; i < topTrend.forecast.length; i++) {
           fLabels.push(`+${i + 1}`);
@@ -339,15 +319,23 @@ export function shapeCharts(
   };
 }
 
-function bucketize(points: { x: number; idx: number }[], buckets: number): { x: number; idx: number }[] {
-  if (points.length <= buckets) return points;
-  const step = points.length / buckets;
-  const out: { x: number; idx: number }[] = [];
-  for (let i = 0; i < buckets; i++) {
-    const idx = Math.floor(i * step);
-    out.push(points[idx]);
+/** Gabungkan periode berurutan jadi `buckets` kelompok (sum/mean), label = x pertama. */
+function rebucket(
+  xs: number[],
+  ys: number[],
+  buckets: number,
+  agg: "sum" | "mean",
+): { x: number[]; y: number[] } {
+  const size = Math.ceil(xs.length / buckets);
+  const outX: number[] = [];
+  const outY: number[] = [];
+  for (let i = 0; i < xs.length; i += size) {
+    const chunk = ys.slice(i, i + size);
+    const sum = chunk.reduce((a, b) => a + b, 0);
+    outX.push(xs[i]);
+    outY.push(agg === "sum" ? sum : sum / chunk.length);
   }
-  return out;
+  return { x: outX, y: outY };
 }
 
 function sampleEvenly<T>(arr: T[], n: number): T[] {

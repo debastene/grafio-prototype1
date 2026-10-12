@@ -1,22 +1,59 @@
 /**
  * Cross-column analysis — uses intent to bias which columns become primary.
+ *
+ * Prinsip statistik yang dipegang di sini:
+ *   - TREN hanya dihitung kalau ada sumbu waktu sungguhan (tanggal, tahun,
+ *     bulan). Urutan baris BUKAN waktu — data cross-sectional (mis. negara
+ *     urut abjad) tidak punya "tren".
+ *   - Data dengan banyak baris per periode diagregasi dulu per periode.
+ *   - Tren, korelasi, dan beda antar-segmen hanya dilaporkan kalau signifikan
+ *     secara statistik (α = 5%), dengan koreksi Benjamini-Hochberg untuk
+ *     banyak pasangan korelasi sekaligus.
  */
 
-import { ColProfile } from "./profile";
+import { ColProfile, TimeKind } from "./profile";
 import { isNumericType, ParsedRow, ColType } from "./parse";
-import { clean, linreg, pearson, zOutliers, groupBy, summarize } from "./stats";
+import {
+  aggregateSeries,
+  benjaminiHochberg,
+  groupBy,
+  iqrOutliers,
+  linreg,
+  oneWayAnova,
+  pearson,
+  pearsonTest,
+  predictionInterval,
+  robustZScores,
+  summarize,
+} from "./stats";
 import { ParsedIntent } from "./intent";
+
+/** Tingkat signifikansi untuk semua uji di engine. */
+export const ALPHA = 0.05;
+/** Minimal anggota per grup supaya rata-rata grup layak dibandingkan. */
+export const MIN_GROUP_SIZE = 3;
 
 export type TrendResult = {
   column: string;
   slope: number;
   r2: number;
   direction: "naik" | "turun" | "datar";
+  /** Perubahan % menurut GARIS TREN (fitted) dari periode pertama ke terakhir. */
   pctChange: number;
+  /** Nilai garis tren di periode pertama & terakhir. */
   startValue: number;
   endValue: number;
-  // For forecast: extrapolated next 3 points
+  // For forecast: extrapolated next 3 points (kosong kalau tren tidak signifikan)
   forecast: number[];
+  /** Batas bawah/atas prediction interval 95% untuk tiap titik forecast. */
+  forecastLower?: number[];
+  forecastUpper?: number[];
+  /** p-value uji slope ≠ 0. */
+  pValue?: number;
+  significant?: boolean;
+  /** Jumlah periode (titik setelah agregasi). */
+  periods?: number;
+  aggregation?: "sum" | "mean";
 };
 
 export type Correlation = {
@@ -25,12 +62,22 @@ export type Correlation = {
   r: number;
   strength: "lemah" | "sedang" | "kuat" | "sangat kuat";
   direction: "positif" | "negatif";
+  n?: number;
+  pValue?: number;
+  /** p-value setelah koreksi Benjamini-Hochberg. */
+  qValue?: number;
 };
 
 export type AnomalyResult = {
   column: string;
   count: number;
+  /**
+   * Contoh paling ekstrem. `zscore` = modified z-score (median/MAD) —
+   * nama field dipertahankan supaya snapshot project lama tetap terbaca.
+   */
   topExample: { rowIndex: number; value: number; zscore: number } | null;
+  /** Pagar Tukey yang dipakai: nilai di luar [lo, hi] dianggap outlier. */
+  fences?: { lo: number; hi: number };
 };
 
 export type SegmentResult = {
@@ -40,11 +87,25 @@ export type SegmentResult = {
   topGroup: { name: string; value: number };
   bottomGroup: { name: string; value: number };
   spread: number;
+  /** p-value one-way ANOVA antar grup (yang anggotanya ≥ MIN_GROUP_SIZE). */
+  pValue?: number;
+  significant?: boolean;
 };
 
 export type CorrMatrix = {
   columns: string[];
   matrix: number[][]; // [i][j] = pearson(col[i], col[j])
+};
+
+/**
+ * Metadata sumbu waktu (ringan — ikut tersimpan di snapshot). Nilai x per baris
+ * dihitung ulang dari profile lewat resolveTimeX().
+ */
+export type TimeAxis = {
+  column: string;
+  kind: TimeKind | "yearMonth";
+  /** Untuk kind "yearMonth": kolom tahun yang dipasangkan dengan kolom bulan. */
+  yearColumn?: string;
 };
 
 export type Analysis = {
@@ -64,6 +125,8 @@ export type Analysis = {
   primaryDateCol: string | null;
   primaryCategoryCol: string | null;
   primaryNumericCols: string[];
+  /** Sumbu waktu yang dipakai untuk tren (null = data tidak berdimensi waktu). */
+  timeAxis?: TimeAxis | null;
 
   // Intent-driven directives
   primaryChartType: "line" | "bar" | "scatter" | "doughnut" | "histogram" | "stacked";
@@ -92,22 +155,137 @@ function strengthLabel(r: number): Correlation["strength"] {
 }
 
 /**
- * Forecast next k points via simple linear extrapolation.
+ * Metrik aditif (uang, jumlah barang) dijumlah per periode; metrik rasio /
+ * pengukuran (persen, suhu, rating) dirata-rata.
  */
-function forecastLinear(xs: number[], ys: number[], k: number): number[] {
-  if (xs.length < 2) return [];
-  const lr = linreg(xs, ys);
-  const last = xs[xs.length - 1];
-  const step = xs.length > 1 ? (last - xs[0]) / (xs.length - 1) : 1;
-  const out: number[] = [];
-  for (let i = 1; i <= k; i++) {
-    out.push(lr.slope * (last + step * i) + lr.intercept);
+export function aggregationFor(p: ColProfile): "sum" | "mean" {
+  return p.type === "currency" || p.type === "integer" ? "sum" : "mean";
+}
+
+/**
+ * Nilai x per baris untuk sebuah sumbu waktu (NaN = tidak ada).
+ */
+export function resolveTimeX(profiles: ColProfile[], axis: TimeAxis): number[] {
+  const col = profiles.find((p) => p.name === axis.column);
+  if (!col?.timeVector) return [];
+  if (axis.kind !== "yearMonth") return col.timeVector;
+  const year = profiles.find((p) => p.name === axis.yearColumn);
+  if (!year?.timeVector) return [];
+  return year.timeVector.map((y, i) => {
+    const m = col.timeVector![i];
+    return Number.isFinite(y) && Number.isFinite(m) ? y * 12 + (m - 1) : NaN;
+  });
+}
+
+/**
+ * Pilih sumbu waktu. Urutan prioritas: kolom waktu yang disebut user →
+ * tanggal (epoch) → tahun+bulan → tahun → bulan (kalau tiap bulan muncul sekali).
+ */
+export function pickTimeAxis(profiles: ColProfile[], intent: ParsedIntent | null): TimeAxis | null {
+  const timeCols = profiles.filter((p) => p.timeKind && p.timeVector);
+  if (timeCols.length === 0) return null;
+
+  const finite = (v: number[]) => v.filter((x) => Number.isFinite(x));
+  const usable = (v: number[]) => new Set(finite(v)).size >= 3;
+
+  const focused = intent?.focusColumns
+    .map((c) => timeCols.find((p) => p.name === c))
+    .find((p): p is ColProfile => !!p);
+
+  const epoch = timeCols.find((p) => p.timeKind === "epoch" && usable(p.timeVector!));
+  const year = timeCols.find((p) => p.timeKind === "year");
+  const month = timeCols.find((p) => p.timeKind === "month");
+
+  const yearMonth = (): TimeAxis | null => {
+    if (!year || !month) return null;
+    const axis: TimeAxis = { column: month.name, kind: "yearMonth", yearColumn: year.name };
+    return usable(resolveTimeX(profiles, axis)) ? axis : null;
+  };
+  const monthOnly = (): TimeAxis | null => {
+    if (!month) return null;
+    const v = finite(month.timeVector!);
+    // Bulan berulang tanpa kolom tahun = campuran beberapa tahun → bukan sumbu linear.
+    if (new Set(v).size !== v.length || !usable(v)) return null;
+    return { column: month.name, kind: "month" };
+  };
+
+  if (focused?.timeKind === "epoch" && usable(focused.timeVector!)) {
+    return { column: focused.name, kind: "epoch" };
   }
-  return out;
+  if (epoch) return { column: epoch.name, kind: "epoch" };
+  const ym = yearMonth();
+  if (ym) return ym;
+  if (year && usable(year.timeVector!)) return { column: year.name, kind: "year" };
+  return monthOnly();
+}
+
+/** Jarak "satu periode" = median selisih antar periode berurutan. */
+function typicalStep(xs: number[]): number {
+  if (xs.length < 2) return 1;
+  const diffs = [];
+  for (let i = 1; i < xs.length; i++) diffs.push(xs[i] - xs[i - 1]);
+  diffs.sort((a, b) => a - b);
+  return diffs[Math.floor(diffs.length / 2)] || 1;
+}
+
+/**
+ * Tren satu metrik terhadap sumbu waktu: agregasi per periode → OLS →
+ * uji slope → prediction interval untuk 3 periode ke depan.
+ */
+export function computeTrend(
+  column: string,
+  xRow: number[],
+  yRow: number[],
+  aggregation: "sum" | "mean",
+): TrendResult | null {
+  const series = aggregateSeries(xRow, yRow, aggregation);
+  const xv = series.x;
+  const yv = series.y;
+  if (xv.length < 3) return null;
+
+  const lr = linreg(xv, yv);
+  const fitStart = lr.intercept + lr.slope * xv[0];
+  const fitEnd = lr.intercept + lr.slope * xv[xv.length - 1];
+  const pct = Math.abs(fitStart) < 1e-12 ? 0 : ((fitEnd - fitStart) / Math.abs(fitStart)) * 100;
+  const significant = lr.pValue < ALPHA;
+  const direction: TrendResult["direction"] =
+    !significant || Math.abs(pct) < 2 ? "datar" : lr.slope > 0 ? "naik" : "turun";
+
+  const forecast: number[] = [];
+  const forecastLower: number[] = [];
+  const forecastUpper: number[] = [];
+  if (significant) {
+    const step = typicalStep(xv);
+    const last = xv[xv.length - 1];
+    for (let i = 1; i <= 3; i++) {
+      const pi = predictionInterval(lr, last + step * i);
+      forecast.push(pi.fit);
+      forecastLower.push(pi.lower);
+      forecastUpper.push(pi.upper);
+    }
+  }
+
+  return {
+    column,
+    slope: lr.slope,
+    r2: lr.r2,
+    direction,
+    pctChange: pct,
+    startValue: fitStart,
+    endValue: fitEnd,
+    forecast,
+    forecastLower,
+    forecastUpper,
+    pValue: lr.pValue,
+    significant,
+    periods: xv.length,
+    aggregation,
+  };
 }
 
 /**
  * Decide best primary chart type given data shape + user intent.
+ * Line chart hanya kalau ada sumbu waktu sungguhan.
  */
 function pickPrimaryChart(
   intent: ParsedIntent | null,
@@ -118,7 +296,8 @@ function pickPrimaryChart(
 ): Analysis["primaryChartType"] {
   // Explicit intent wins
   if (intent?.tags.has("trend") || intent?.tags.has("forecast")) {
-    return hasDate || numericCount > 0 ? "line" : "bar";
+    if (hasDate) return "line";
+    return hasCategory && numericCount > 0 ? "bar" : "histogram";
   }
   if (intent?.tags.has("correlation")) return hasStrongCorrelation ? "scatter" : "bar";
   if (intent?.tags.has("distribution")) return hasCategory ? "doughnut" : "histogram";
@@ -141,21 +320,21 @@ export function analyzeTable(
   const rowCount = rows.length;
   const focusSet = new Set(intent?.focusColumns ?? []);
 
-  const numericCols = profiles.filter((p) => isNumericType(p.type) && !p.isLikelyId).map((p) => p.name);
-  const categoricalCols = profiles.filter((p) => p.type === "categorical" || p.type === "boolean").map((p) => p.name);
-  const dateCols = profiles.filter((p) => p.isLikelyDate).map((p) => p.name);
+  const isMetric = (p: ColProfile) => isNumericType(p.type) && !p.isLikelyId && !p.timeKind;
+  const numericCols = profiles.filter(isMetric).map((p) => p.name);
+  const categoricalCols = profiles
+    .filter((p) => (p.type === "categorical" || p.type === "boolean") && p.timeKind !== "month")
+    .map((p) => p.name);
+  const dateCols = profiles.filter((p) => p.timeKind).map((p) => p.name);
 
   // Rank numeric cols with focus boost
   const ranked = [...profiles]
-    .filter((p) => isNumericType(p.type) && !p.isLikelyId)
+    .filter(isMetric)
     .sort((a, b) => importance(b, focusSet) - importance(a, focusSet));
   const primaryNumericCols = ranked.slice(0, 6).map((p) => p.name);
 
-  // Pick primary date / category, allowing intent override
-  const intentDate = intent?.focusColumns.find((c) =>
-    profiles.find((p) => p.name === c)?.isLikelyDate,
-  );
-  const primaryDateCol = intentDate ?? dateCols[0] ?? null;
+  const timeAxis = pickTimeAxis(profiles, intent);
+  const primaryDateCol = timeAxis?.column ?? null;
 
   const intentCat = intent?.focusValueColumns[0] ??
     intent?.focusColumns.find((c) => {
@@ -171,54 +350,20 @@ export function analyzeTable(
     categoricalCols[0] ??
     null;
 
-  // ===== TRENDS
+  // ===== TRENDS (hanya kalau ada sumbu waktu)
   const trends: TrendResult[] = [];
-  const trendXs = (() => {
-    if (primaryDateCol) {
-      const dp = profiles.find((p) => p.name === primaryDateCol)!;
-      return dp.numericVector ?? [];
+  if (timeAxis) {
+    const timeX = resolveTimeX(profiles, timeAxis);
+    for (const numName of primaryNumericCols.slice(0, 5)) {
+      const numPr = profiles.find((p) => p.name === numName);
+      if (!numPr?.numericVector) continue;
+      const t = computeTrend(numName, timeX, numPr.numericVector, aggregationFor(numPr));
+      if (t) trends.push(t);
     }
-    return null;
-  })();
-
-  for (const numName of primaryNumericCols.slice(0, 5)) {
-    const numPr = profiles.find((p) => p.name === numName);
-    if (!numPr?.numericVector) continue;
-    const ys = numPr.numericVector;
-    let pairs: [number, number][] = [];
-    if (trendXs) {
-      for (let i = 0; i < trendXs.length; i++) {
-        if (Number.isFinite(trendXs[i]) && Number.isFinite(ys[i])) pairs.push([trendXs[i], ys[i]]);
-      }
-    } else {
-      const cleanY = clean(ys);
-      pairs = cleanY.map((y, i) => [i, y]);
-    }
-    if (pairs.length < 3) continue;
-    pairs.sort((a, b) => a[0] - b[0]);
-    const xv = pairs.map((p) => p[0]);
-    const yv = pairs.map((p) => p[1]);
-    const lr = linreg(xv, yv);
-    const startValue = yv[0];
-    const endValue = yv[yv.length - 1];
-    const pct = startValue === 0 ? 0 : ((endValue - startValue) / Math.abs(startValue)) * 100;
-    const dir: TrendResult["direction"] =
-      Math.abs(lr.r2) < 0.05 || Math.abs(pct) < 2 ? "datar" : lr.slope > 0 ? "naik" : "turun";
-    const forecast = forecastLinear(xv, yv, 3);
-    trends.push({
-      column: numName,
-      slope: lr.slope,
-      r2: lr.r2,
-      direction: dir,
-      pctChange: pct,
-      startValue,
-      endValue,
-      forecast,
-    });
   }
 
-  // ===== CORRELATIONS
-  const correlations: Correlation[] = [];
+  // ===== CORRELATIONS — uji per pasangan + koreksi Benjamini-Hochberg
+  const candidates: Correlation[] = [];
   for (let i = 0; i < primaryNumericCols.length; i++) {
     for (let j = i + 1; j < primaryNumericCols.length; j++) {
       const a = profiles.find((p) => p.name === primaryNumericCols[i]);
@@ -235,18 +380,23 @@ export function analyzeTable(
         }
       }
       if (xs.length < 5) continue;
-      const r = pearson(xs, ys);
-      if (Math.abs(r) < 0.3) continue;
-      correlations.push({
+      const test = pearsonTest(xs, ys);
+      candidates.push({
         a: a.name,
         b: b.name,
-        r,
-        strength: strengthLabel(r),
-        direction: r > 0 ? "positif" : "negatif",
+        r: test.r,
+        strength: strengthLabel(test.r),
+        direction: test.r > 0 ? "positif" : "negatif",
+        n: test.n,
+        pValue: test.pValue,
       });
     }
   }
-  correlations.sort((a, b) => Math.abs(b.r) - Math.abs(a.r));
+  const qValues = benjaminiHochberg(candidates.map((c) => c.pValue ?? 1));
+  candidates.forEach((c, i) => (c.qValue = qValues[i]));
+  const correlations = candidates
+    .filter((c) => Math.abs(c.r) >= 0.3 && (c.qValue ?? 1) < ALPHA)
+    .sort((a, b) => Math.abs(b.r) - Math.abs(a.r));
 
   // ===== CORRELATION MATRIX (full, for heatmap)
   const matrixCols = primaryNumericCols.slice(0, 6);
@@ -281,45 +431,39 @@ export function analyzeTable(
     correlationMatrix = { columns: matrixCols, matrix };
   }
 
-  // ===== ANOMALIES
+  // ===== ANOMALIES — pagar Tukey 1.5×IQR (konsisten dengan boxplot & capping)
   const anomalies: AnomalyResult[] = [];
   for (const numName of primaryNumericCols) {
     const p = profiles.find((x) => x.name === numName);
     if (!p?.numericVector) continue;
-    const cleaned = clean(p.numericVector);
-    if (cleaned.length < 5) continue;
-    const r = zOutliers(cleaned, 2.5);
-    if (r.indices.length === 0) continue;
-
-    let maxIdx = 0;
-    for (let i = 1; i < r.zscores.length; i++) {
-      if (Math.abs(r.zscores[i]) > Math.abs(r.zscores[maxIdx])) maxIdx = i;
-    }
-    let cleanedCounter = -1;
-    let originalIdx = -1;
-    for (let i = 0; i < p.numericVector.length; i++) {
-      if (Number.isFinite(p.numericVector[i])) {
-        cleanedCounter++;
-        if (cleanedCounter === r.indices[maxIdx]) {
-          originalIdx = i;
-          break;
-        }
+    const originalIdx: number[] = [];
+    const cleaned: number[] = [];
+    p.numericVector.forEach((v, i) => {
+      if (Number.isFinite(v)) {
+        cleaned.push(v);
+        originalIdx.push(i);
       }
-    }
+    });
+    if (cleaned.length < 5) continue;
+    const out = iqrOutliers(cleaned);
+    if (out.indices.length === 0) continue;
 
+    const rz = robustZScores(cleaned);
+    let best = out.indices[0];
+    for (const i of out.indices) {
+      if (Math.abs(rz[i]) > Math.abs(rz[best])) best = i;
+    }
+    const s = summarize(cleaned);
     anomalies.push({
       column: numName,
-      count: r.indices.length,
-      topExample: {
-        rowIndex: originalIdx,
-        value: r.values[maxIdx],
-        zscore: r.zscores[maxIdx],
-      },
+      count: out.indices.length,
+      topExample: { rowIndex: originalIdx[best], value: cleaned[best], zscore: rz[best] },
+      fences: { lo: s.q1 - 1.5 * s.iqr, hi: s.q3 + 1.5 * s.iqr },
     });
   }
   anomalies.sort((a, b) => b.count - a.count);
 
-  // ===== SEGMENTS
+  // ===== SEGMENTS — one-way ANOVA, grup kecil (< MIN_GROUP_SIZE) diabaikan
   const segments: SegmentResult[] = [];
   if (primaryCategoryCol && primaryNumericCols.length > 0) {
     for (const metric of primaryNumericCols.slice(0, 3)) {
@@ -334,16 +478,17 @@ export function analyzeTable(
           return typeof v === "number" ? v : null;
         },
       );
-      if (groups.size < 2) continue;
-      const groupStats = Array.from(groups.entries()).map(([name, vals]) => {
+      const eligible = Array.from(groups.entries()).filter(([, vals]) => vals.length >= MIN_GROUP_SIZE);
+      if (eligible.length < 2) continue;
+      const groupStats = eligible.map(([name, vals]) => {
         const s = summarize(vals);
         return { name: String(name), count: vals.length, mean: s.mean, sum: s.sum };
       });
       groupStats.sort((a, b) => b.mean - a.mean);
-      if (groupStats.length === 0) continue;
       const top = groupStats[0];
       const bot = groupStats[groupStats.length - 1];
       const overallMean = groupStats.reduce((a, g) => a + g.mean, 0) / groupStats.length;
+      const anova = oneWayAnova(eligible.map(([, vals]) => vals));
       segments.push({
         groupCol: primaryCategoryCol,
         metricCol: metric,
@@ -351,14 +496,17 @@ export function analyzeTable(
         topGroup: { name: top.name, value: top.mean },
         bottomGroup: { name: bot.name, value: bot.mean },
         spread: overallMean === 0 ? 0 : (top.mean - bot.mean) / Math.abs(overallMean),
+        pValue: anova.pValue,
+        significant: anova.pValue < ALPHA,
       });
     }
-    segments.sort((a, b) => b.spread - a.spread);
+    // Signifikan dulu, lalu spread terbesar.
+    segments.sort((a, b) => Number(!!b.significant) - Number(!!a.significant) || b.spread - a.spread);
   }
 
   const kpiCandidates = primaryNumericCols.slice(0, 4).map((name) => {
     const p = profiles.find((x) => x.name === name)!;
-    const trend = trends.find((t) => t.column === name);
+    const trend = trends.find((t) => t.column === name && t.significant);
     return {
       name,
       type: p.type,
@@ -389,7 +537,7 @@ export function analyzeTable(
   const hasStrongCorr = correlations.length > 0 && Math.abs(correlations[0].r) >= 0.5;
   const primaryChartType = pickPrimaryChart(
     intent,
-    !!primaryDateCol,
+    !!timeAxis,
     !!primaryCategoryCol,
     primaryNumericCols.length,
     hasStrongCorr,
@@ -409,8 +557,21 @@ export function analyzeTable(
     primaryDateCol,
     primaryCategoryCol,
     primaryNumericCols,
+    timeAxis,
     primaryChartType,
     intentApplied: intent,
     filteredRowIndices,
   };
+}
+
+/** Untuk sumbu x non-epoch (tahun / tahun-bulan / bulan) → label yang manusiawi. */
+export function formatTimeLabel(x: number, kind: TimeAxis["kind"]): string {
+  const BULAN = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+  if (kind === "year") return String(x);
+  if (kind === "month") return BULAN[(x - 1 + 12) % 12] ?? String(x);
+  if (kind === "yearMonth") return `${BULAN[x % 12]} ${Math.floor(x / 12)}`;
+  const d = new Date(x);
+  return Number.isNaN(d.getTime())
+    ? String(x)
+    : d.toLocaleDateString("id-ID", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" });
 }

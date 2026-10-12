@@ -133,11 +133,16 @@ export function parseWithFormat(s: string, format: "id" | "en"): number | null {
   // Strip leading currency-y prefix like "Rp"
   cleaned = cleaned.replace(/^Rp/i, "").trim();
 
+  // Pemisah ribuan harus berupa grup 3 digit. Tanpa cek ini tanggal
+  // "05.01.2024" jadi 5012024 dan "1.5" di format ID jadi 15.
   if (format === "id") {
     // ID: period = thousand sep, comma = decimal
+    if (cleaned.includes(".") && !/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(cleaned)) return null;
+    if ((cleaned.match(/,/g) ?? []).length > 1) return null;
     cleaned = cleaned.replace(/\./g, "").replace(",", ".");
   } else {
     // EN: comma = thousand sep, period = decimal
+    if (cleaned.includes(",") && !/^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(cleaned)) return null;
     cleaned = cleaned.replace(/,/g, "");
   }
 
@@ -176,6 +181,11 @@ export function applyNumberFormat(
         ) {
           // Skip ISO-ish dates
           if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+            out[h] = v;
+            continue;
+          }
+          // Skip kode berangka: no HP "0812…" (nol di depan) & NIK/rekening ≥ 16 digit
+          if (/^0\d+$/.test(trimmed) || /^\d{16,}$/.test(trimmed)) {
             out[h] = v;
             continue;
           }

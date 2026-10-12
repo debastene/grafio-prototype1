@@ -48,14 +48,14 @@ describe("summarize", () => {
     expect(s.min).toBe(1);
     expect(s.max).toBe(5);
     expect(s.range).toBe(4);
-    // Population variance: ((-2)²+(-1)²+0+1²+2²)/5 = 2
-    expect(s.variance).toBe(2);
-    expect(s.std).toBeCloseTo(Math.sqrt(2), 10);
+    // Variansi SAMPEL (Bessel): ((-2)²+(-1)²+0+1²+2²)/(5−1) = 2.5 — estimator tak bias
+    expect(s.variance).toBe(2.5);
+    expect(s.std).toBeCloseTo(Math.sqrt(2.5), 10);
     expect(s.q1).toBe(2);
     expect(s.q3).toBe(4);
     expect(s.iqr).toBe(2);
     expect(s.skewness).toBeCloseTo(0, 10); // simetris
-    expect(s.cv).toBeCloseTo(Math.sqrt(2) / 3, 10);
+    expect(s.cv).toBeCloseTo(Math.sqrt(2.5) / 3, 10);
   });
 
   it("array kosong → semua nol (tidak NaN)", () => {
@@ -123,8 +123,9 @@ describe("linreg", () => {
     expect(r.r2).toBe(0);
   });
 
-  it("kurang dari 2 titik → nol semua", () => {
-    expect(linreg([1], [1])).toEqual({ slope: 0, intercept: 0, r2: 0 });
+  it("kurang dari 2 titik → slope/intercept/r² nol, p-value 1", () => {
+    const r = linreg([1], [1]);
+    expect(r).toMatchObject({ slope: 0, intercept: 0, r2: 0, pValue: 1 });
   });
 
   it("data noisy → 0 < r² < 1", () => {

@@ -13,7 +13,7 @@
  */
 
 import { ColProfile } from "./profile";
-import { ParsedRow } from "./parse";
+import { ParsedRow, isNumericType } from "./parse";
 import { clean as cleanArr, summarize } from "./stats";
 
 export type CleaningIssue =
@@ -31,7 +31,11 @@ export type CleaningPlan = {
   dropConstantColumns: boolean;
   /** Drop exact duplicate rows */
   dropDuplicates: boolean;
-  /** Per-column missing-value imputation */
+  /**
+   * Per-column missing-value imputation. CATATAN: imputasi median/modus
+   * menyempitkan variansi & melemahkan korelasi — catatan cleaning
+   * mencantumkan jumlah sel yang diisi supaya pembaca tahu.
+   */
   imputeMissing: "none" | "mean_median" | "drop_rows";
   /** Cap outliers at 1.5×IQR fences (no row drop) */
   capOutliers: boolean;
@@ -56,15 +60,17 @@ export const DEFAULT_PLAN: CleaningPlan = {
  * Build a recommended cleaning plan from detected issues.
  * "AI-assisted" defaults: aggressive auto-fix where safe, conservative on
  * destructive ops (no row-drop, no constant-column drop).
+ *
+ * Capping outlier TIDAK diaktifkan otomatis: outlier sering data sah (populasi
+ * India, transaksi besar saat Ramadhan). Meng-cap diam-diam mengubah total &
+ * rata-rata yang dilaporkan. User tetap bisa menyalakannya di wizard.
  */
 export function recommendPlan(issues: CleaningIssue[]): CleaningPlan {
   const plan: CleaningPlan = { ...DEFAULT_PLAN, excludeColumns: [] };
   const hasMissing = issues.some((i) => i.kind === "missing");
-  const hasOutliers = issues.some((i) => i.kind === "outliers");
   const hasDupes = issues.some((i) => i.kind === "duplicate_rows");
   const hasEmpty = issues.some((i) => i.kind === "empty_column");
   if (hasMissing) plan.imputeMissing = "mean_median";
-  if (hasOutliers) plan.capOutliers = true;
   plan.dropDuplicates = hasDupes;
   plan.dropEmptyColumns = hasEmpty;
   return plan;
@@ -125,11 +131,11 @@ export function detectIssues(profiles: ColProfile[], rows: ParsedRow[]): Cleanin
     }
   }
 
-  // Duplicate detection (cap at first 10000 rows)
+  // Duplicate detection — SEMUA baris, supaya angka yang dilaporkan sama
+  // dengan jumlah baris yang benar-benar dibuang oleh applyCleaning.
   const seen = new Set<string>();
   let dupes = 0;
-  const cap = Math.min(rows.length, 10000);
-  for (let i = 0; i < cap; i++) {
+  for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
     const key = JSON.stringify(r);
     if (seen.has(key)) dupes++;
@@ -235,7 +241,8 @@ export function applyCleaning(
     for (const p of profiles) {
       if (!workingHeaders.includes(p.name)) continue;
       if (excluded.has(p.name)) continue;
-      if (!p.numericVector || !p.summary) continue;
+      // Hanya metrik numerik — tanggal/tahun/bulan tidak boleh "di-cap".
+      if (!p.numericVector || !p.summary || !isNumericType(p.type) || p.timeKind) continue;
       const cleanedVec = cleanArr(p.numericVector);
       if (cleanedVec.length < 5) continue;
       const s = summarize(cleanedVec);

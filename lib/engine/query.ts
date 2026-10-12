@@ -17,7 +17,7 @@
 import { EngineResult } from "./index";
 import { ColProfile } from "./profile";
 import { ParsedRow } from "./parse";
-import { summarize, pearson, formatByType, compactNumber } from "./stats";
+import { summarize, pearsonTest, formatByType, formatP, compactNumber } from "./stats";
 import { parseIntent } from "./intent";
 
 export type QueryAnswer = {
@@ -276,11 +276,12 @@ function tryCorrelation(q: string, profiles: ColProfile[]): QueryAnswer | null {
     }
   }
   if (xs.length < 5) return { text: `Data tidak cukup untuk korelasi ${a.name} & ${b.name}.`, confidence: 0.5 };
-  const r = pearson(xs, ys);
+  const { r, pValue } = pearsonTest(xs, ys);
   const strength = Math.abs(r) >= 0.7 ? "sangat kuat" : Math.abs(r) >= 0.5 ? "kuat" : Math.abs(r) >= 0.3 ? "sedang" : "lemah";
   const dir = r > 0 ? "positif" : "negatif";
+  const sig = pValue < 0.05 ? "signifikan" : "TIDAK signifikan — bisa kebetulan";
   return {
-    text: `Korelasi Pearson ${a.name} ↔ ${b.name} = ${r.toFixed(3)} (${strength}, ${dir}). Berdasarkan ${xs.length} pasangan nilai.`,
+    text: `Korelasi Pearson ${a.name} ↔ ${b.name} = ${r.toFixed(3)} (${strength}, ${dir}; ${formatP(pValue)}, ${sig}). Berdasarkan ${xs.length} pasangan nilai.`,
     data: { kind: "scalar", label: `r(${a.name}, ${b.name})`, value: r.toFixed(3) },
     matchedColumns: [a.name, b.name],
     confidence: 0.95,
@@ -311,13 +312,29 @@ function tryTrend(q: string, result: EngineResult): QueryAnswer | null {
       best = t;
     }
   }
-  if (!best) return null;
+  if (!best) {
+    return result.analysis.timeAxis
+      ? null
+      : {
+          text: "Dataset ini tidak punya kolom waktu (tanggal/tahun/bulan), jadi tren tidak bisa dihitung — urutan baris di file bukan urutan waktu.",
+          confidence: 0.85,
+        };
+  }
   const profile = result.profile.find((p) => p.name === best.column);
   const fcText = best.forecast.length > 0
-    ? ` Forecast 3 langkah: ${best.forecast.map((v) => fmt(v, profile)).join(", ")}.`
+    ? ` Forecast 3 periode: ${best.forecast.map((v) => fmt(v, profile)).join(", ")}${
+        best.forecastLower?.length && Number.isFinite(best.forecastLower[2])
+          ? ` (rentang 95% periode ke-3: ${fmt(best.forecastLower[2], profile)} – ${fmt(best.forecastUpper![2], profile)})`
+          : ""
+      }.`
+    : "";
+  const sig = best.pValue !== undefined
+    ? best.significant
+      ? ` Signifikan (${formatP(best.pValue)}).`
+      : ` Belum signifikan (${formatP(best.pValue)}) — bisa jadi cuma fluktuasi acak.`
     : "";
   return {
-    text: `Tren ${best.column}: ${best.direction} ${Math.abs(best.pctChange).toFixed(1)}% (${fmt(best.startValue, profile)} → ${fmt(best.endValue, profile)}). R²=${best.r2.toFixed(2)} ${best.r2 > 0.6 ? "(sangat konsisten)" : best.r2 > 0.3 ? "(cukup konsisten)" : "(berfluktuasi)"}.${fcText}`,
+    text: `Tren ${best.column}: ${best.direction} ${Math.abs(best.pctChange).toFixed(1)}% menurut garis tren (${fmt(best.startValue, profile)} → ${fmt(best.endValue, profile)}). R²=${best.r2.toFixed(2)}.${sig}${fcText}`,
     matchedColumns: [best.column],
     confidence: 0.9,
   };
@@ -331,7 +348,7 @@ function tryAnomaly(q: string, result: EngineResult): QueryAnswer | null {
   if (!/\b(anomali|anomaly|outlier|aneh|ekstrem|tidak biasa|unusual)\b/.test(lower)) return null;
 
   if (result.analysis.anomalies.length === 0) {
-    return { text: "Tidak ada outlier signifikan (Z-score ≥ 2.5) terdeteksi.", confidence: 0.9 };
+    return { text: "Tidak ada nilai di luar rentang wajar (pagar 1,5×IQR) yang terdeteksi.", confidence: 0.9 };
   }
 
   // Find specific column if user mentioned one
@@ -347,7 +364,7 @@ function tryAnomaly(q: string, result: EngineResult): QueryAnswer | null {
   const profile = result.profile.find((p) => p.name === target.column);
 
   return {
-    text: `${target.column}: ${target.count} outlier (Z-score ≥ 2.5).${target.topExample ? ` Tertinggi: nilai ${fmt(target.topExample.value, profile)} dengan z=${target.topExample.zscore.toFixed(2)} di baris #${target.topExample.rowIndex + 1}.` : ""}`,
+    text: `${target.column}: ${target.count} outlier (di luar pagar 1,5×IQR).${target.topExample ? ` Paling ekstrem: nilai ${fmt(target.topExample.value, profile)} (z robust ${target.topExample.zscore.toFixed(1)}) di baris #${target.topExample.rowIndex + 1}.` : ""}`,
     matchedColumns: [target.column],
     confidence: 0.9,
   };

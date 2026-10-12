@@ -56,6 +56,7 @@ export function persistDashboard(result: EngineResult): void {
         ...p,
         // Strip heavy raw arrays — dashboard render hanya butuh summary stats.
         numericVector: undefined,
+        timeVector: undefined,
       })) as EngineResult["profile"],
     };
     const payload: PersistedState = {

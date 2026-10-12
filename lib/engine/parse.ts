@@ -197,18 +197,135 @@ export function parseText(text: string, ext: string): ParsedTable {
 // ===== TYPE INFERENCE =====
 
 const PERCENT_RE = /^-?\d+(\.\d+)?\s*%$/;
-const CURRENCY_RE = /^[$€£¥¢₹฿₽₩]?\s*-?\d{1,3}(([,.]\d{3})*)?(\.\d+)?$|^-?\d{1,3}(([,.]\d{3})*)?(\.\d+)?\s*[$€£¥¢₹฿₩]?$/;
 const NUMBER_RE = /^-?\d+(\.\d+)?(e[+-]?\d+)?$/i;
 const INT_RE = /^-?\d+$/;
 const BOOL_RE = /^(true|false|yes|no|y|n|0|1)$/i;
-const DATE_RES: RegExp[] = [
-  /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?(\.\d+)?Z?)?$/, // ISO
-  /^\d{1,2}\/\d{1,2}\/\d{2,4}$/,
-  /^\d{1,2}-\d{1,2}-\d{2,4}$/,
-  /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/i,
-];
 
-export function coerceValue(raw: string | number | boolean | null): {
+// ===== TANGGAL =====
+//
+// Date.parse() milik JS menganggap "05/01/2024" sebagai format AS (1 Mei),
+// menerima tanggal mustahil ("2024-02-30" → 1 Maret), dan mencampur zona waktu
+// lokal vs UTC. Untuk data Indonesia itu fatal, jadi tanggal di-parse manual:
+//   - urutan hari/bulan dideteksi PER KOLOM (detectDateOrder)
+//   - komponen divalidasi (bulan 1-12, hari ≤ jumlah hari bulan itu)
+//   - semua dikonversi ke UTC supaya konsisten antar baris.
+
+export type DateOrder = "dmy" | "mdy";
+export type CoerceOptions = { dateOrder?: DateOrder };
+
+const ISO_DATE_RE =
+  /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?\s*(Z|[+-]\d{2}:?\d{2})?)?$/;
+const NUMERIC_DATE_RE =
+  /^(\d{1,2})([\/\-.])(\d{1,2})\2(\d{2}|\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/;
+
+const MONTHS: Record<string, number> = {
+  jan: 1, januari: 1, january: 1,
+  feb: 2, februari: 2, february: 2, peb: 2, pebruari: 2,
+  mar: 3, maret: 3, march: 3,
+  apr: 4, april: 4,
+  mei: 5, may: 5,
+  jun: 6, juni: 6, june: 6,
+  jul: 7, juli: 7, july: 7,
+  agu: 8, agt: 8, ags: 8, agustus: 8, aug: 8, august: 8,
+  sep: 9, sept: 9, september: 9,
+  okt: 10, oktober: 10, oct: 10, october: 10,
+  nov: 11, nop: 11, november: 11, nopember: 11,
+  des: 12, desember: 12, dec: 12, december: 12,
+};
+
+/** Nomor bulan (1-12) dari nama bulan Indonesia/Inggris (penuh/singkat), atau null. */
+export function monthIndex(s: string): number | null {
+  const k = s.trim().toLowerCase().replace(/\.$/, "");
+  return MONTHS[k] ?? null;
+}
+
+function daysInMonth(y: number, m: number): number {
+  return new Date(Date.UTC(y, m, 0)).getUTCDate();
+}
+
+function utcIfValid(y: number, m: number, d: number, hh = 0, mm = 0, ss = 0): number | null {
+  if (m < 1 || m > 12 || d < 1 || d > daysInMonth(y, m)) return null;
+  if (hh > 23 || mm > 59 || ss > 59) return null;
+  return Date.UTC(y, m - 1, d, hh, mm, ss);
+}
+
+function fullYear(y: string): number {
+  const n = parseInt(y, 10);
+  if (y.length === 4) return n;
+  return n < 70 ? 2000 + n : 1900 + n;
+}
+
+/**
+ * Parse string tanggal → epoch ms (UTC), atau null kalau bukan tanggal valid.
+ */
+export function parseDateString(s: string, order: DateOrder = "dmy"): number | null {
+  let m = s.match(ISO_DATE_RE);
+  if (m) {
+    if (m[7]) {
+      // Ada zona waktu eksplisit — validasi komponen tanggal, lalu hormati offset.
+      if (utcIfValid(+m[1], +m[2], +m[3]) === null) return null;
+      const t = Date.parse(s.replace(" ", "T"));
+      return Number.isNaN(t) ? null : t;
+    }
+    return utcIfValid(+m[1], +m[2], +m[3], m[4] ? +m[4] : 0, m[5] ? +m[5] : 0, m[6] ? +m[6] : 0);
+  }
+
+  // "2024-01" / "2024/01" → periode bulanan, tanggal 1
+  m = s.match(/^(\d{4})[-\/](\d{1,2})$/);
+  if (m) return utcIfValid(+m[1], +m[2], 1);
+
+  m = s.match(NUMERIC_DATE_RE);
+  if (m) {
+    const a = +m[1];
+    const b = +m[3];
+    const day = order === "dmy" ? a : b;
+    const month = order === "dmy" ? b : a;
+    return utcIfValid(fullYear(m[4]), month, day, m[5] ? +m[5] : 0, m[6] ? +m[6] : 0, m[7] ? +m[7] : 0);
+  }
+
+  // "15 Januari 2024" / "15 Jan 2024"
+  m = s.match(/^(\d{1,2})\s+([A-Za-z]+\.?)\s+(\d{4})$/);
+  if (m) {
+    const mi = monthIndex(m[2]);
+    return mi ? utcIfValid(+m[3], mi, +m[1]) : null;
+  }
+  // "Januari 2024" / "Jan 2024" → tanggal 1
+  m = s.match(/^([A-Za-z]+\.?)\s+(\d{4})$/);
+  if (m) {
+    const mi = monthIndex(m[1]);
+    return mi ? utcIfValid(+m[2], mi, 1) : null;
+  }
+  // "Jan 15, 2024" / "January 15 2024"
+  m = s.match(/^([A-Za-z]+\.?)\s+(\d{1,2}),?\s+(\d{4})$/);
+  if (m) {
+    const mi = monthIndex(m[1]);
+    return mi ? utcIfValid(+m[3], mi, +m[2]) : null;
+  }
+  return null;
+}
+
+/**
+ * Tentukan urutan hari/bulan untuk satu kolom. Bukti: komponen pertama > 12
+ * → pasti DD/MM; komponen kedua > 12 → pasti MM/DD. Kalau ambigu (semua ≤ 12)
+ * default DD/MM — konvensi Indonesia.
+ */
+export function detectDateOrder(values: (string | number | boolean | null)[]): DateOrder {
+  let dmy = 0;
+  let mdy = 0;
+  for (const v of values) {
+    if (typeof v !== "string") continue;
+    const m = v.trim().match(NUMERIC_DATE_RE);
+    if (!m) continue;
+    if (+m[1] > 12) dmy++;
+    else if (+m[3] > 12) mdy++;
+  }
+  return mdy > dmy ? "mdy" : "dmy";
+}
+
+export function coerceValue(
+  raw: string | number | boolean | null,
+  opts: CoerceOptions = {},
+): {
   value: number | string | boolean | null;
   type: ColType | null;
 } {
@@ -243,6 +360,10 @@ export function coerceValue(raw: string | number | boolean | null): {
   if (/^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(s)) {
     return { value: parseFloat(s.replace(/,/g, "")), type: "number" };
   }
+  // Kode berangka (no HP "0812…", kode "007") dan digit > 15 (NIK 16 digit,
+  // no rekening) adalah IDENTIFIER, bukan angka: nol di depan hilang dan
+  // presisi double rusak kalau dijadikan number.
+  if (/^0\d+$/.test(s) || /^\d{16,}$/.test(s)) return { value: s, type: "text" };
   if (INT_RE.test(s)) return { value: parseInt(s, 10), type: "integer" };
   if (NUMBER_RE.test(s)) return { value: parseFloat(s), type: "number" };
   if (BOOL_RE.test(s)) {
@@ -252,10 +373,8 @@ export function coerceValue(raw: string | number | boolean | null): {
       type: "boolean",
     };
   }
-  if (DATE_RES.some((r) => r.test(s))) {
-    const t = Date.parse(s);
-    if (!Number.isNaN(t)) return { value: t, type: "date" };
-  }
+  const t = parseDateString(s, opts.dateOrder ?? "dmy");
+  if (t !== null) return { value: t, type: "date" };
   return { value: s, type: "text" };
 }
 
@@ -263,11 +382,15 @@ export function coerceValue(raw: string | number | boolean | null): {
  * Infer the dominant type of a column from its values.
  * Treats categorical = text with low cardinality.
  */
-export function inferColType(values: (string | number | boolean | null)[]): ColType {
+export function inferColType(
+  values: (string | number | boolean | null)[],
+  opts: CoerceOptions = {},
+): ColType {
+  const dateOrder = opts.dateOrder ?? detectDateOrder(values);
   const types: Record<string, number> = {};
   let nonNull = 0;
   for (const v of values) {
-    const { type } = coerceValue(v);
+    const { type } = coerceValue(v, { dateOrder });
     if (type) {
       types[type] = (types[type] ?? 0) + 1;
       nonNull++;

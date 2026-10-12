@@ -90,3 +90,12 @@ describe("applyNumberFormat", () => {
     expect(out[0].b).toBeNull();
   });
 });
+
+describe("applyNumberFormat — kode berangka", () => {
+  it("no HP dengan nol di depan & NIK 16 digit tidak diubah jadi angka", () => {
+    const out = applyNumberFormat([{ hp: "081234567000", nik: "3578010101900001", n: "1.500" }], ["hp", "nik", "n"], "id");
+    expect(out[0].hp).toBe("081234567000");
+    expect(out[0].nik).toBe("3578010101900001");
+    expect(out[0].n).toBe(1500);
+  });
+});
