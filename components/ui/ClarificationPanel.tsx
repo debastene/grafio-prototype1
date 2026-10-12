@@ -6,6 +6,7 @@ import {
   CheckCircle2, AlertTriangle, Sparkles, Settings2, Trash2,
   WandSparkles, ChevronRight, Loader2, ArrowLeft, Brain,
 } from "lucide-react";
+import { maskArrayRow } from "@/lib/privacy/pii";
 
 type AiClarification = {
   understanding?: string;
@@ -92,7 +93,11 @@ export default function ClarificationPanel({ inspection, initialPrompt, onConfir
                 name: inspection.domain.name,
                 description: inspection.domain.description,
               },
-              preview: inspection.preview,
+              // Data pribadi disamarkan SEBELUM keluar dari browser.
+              preview: {
+                headers: inspection.preview.headers,
+                rows: inspection.preview.rows.map((r) => maskArrayRow(r, inspection.preview.headers)),
+              },
               profile: inspection.profile.map((p) => ({
                 name: p.name,
                 type: p.type,

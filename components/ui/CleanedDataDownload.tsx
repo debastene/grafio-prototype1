@@ -18,6 +18,7 @@ import {
   type ColumnRename,
   type DownloadFormat,
 } from "@/lib/engine/exportClean";
+import { maskArrayRow } from "@/lib/privacy/pii";
 
 type Props = {
   file: File;
@@ -67,7 +68,7 @@ export default function CleanedDataDownload({ file, inspection, plan, numberForm
             context: {
               headers: inspection.headers,
               domain: inspection.domain.name,
-              sample: inspection.preview.rows.slice(0, 3),
+              sample: inspection.preview.rows.slice(0, 3).map((r) => maskArrayRow(r, inspection.preview.headers)),
             },
           }),
         });

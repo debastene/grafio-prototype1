@@ -17,6 +17,7 @@ import {
   WandSparkles, ChevronRight, Loader2, ArrowLeft, Brain,
   ShieldCheck, Activity, Wand2, MessageSquare, Heart, ArrowRight,
 } from "lucide-react";
+import { maskArrayRow } from "@/lib/privacy/pii";
 
 // ============================================================
 // TYPES
@@ -196,7 +197,11 @@ export default function DataPrepWizard({ file, inspection, initialPrompt, onConf
                 name: inspection.domain.name,
                 description: inspection.domain.description,
               },
-              preview: inspection.preview,
+              // Data pribadi disamarkan SEBELUM keluar dari browser.
+              preview: {
+                headers: inspection.preview.headers,
+                rows: inspection.preview.rows.map((r) => maskArrayRow(r, inspection.preview.headers)),
+              },
               profile: inspection.profile.map((p) => ({
                 name: p.name,
                 type: p.type,
@@ -866,7 +871,7 @@ function CleaningStep({
             />
             <ToggleRow
               label="Cap nilai ekstrem (outlier)"
-              desc="Batasi nilai aneh ke fence 1.5×IQR — mengurangi distorsi statistik"
+              desc="Batasi nilai ke pagar 1.5×IQR. Hanya nyalakan kalau outlier-nya SALAH INPUT — kalau datanya sah (mis. negara besar, transaksi besar), capping mengubah total & rata-rata."
               checked={plan.capOutliers}
               onChange={(v) => setPlan({ ...plan, capOutliers: v })}
             />

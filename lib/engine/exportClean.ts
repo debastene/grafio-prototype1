@@ -21,9 +21,18 @@ export type ColumnRename = {
 
 const NEEDS_QUOTE = /[",\n\r]/;
 
-function csvCell(v: unknown, delim: string): string {
+/**
+ * CSV/formula injection (OWASP): sel teks yang diawali = + - @ TAB CR
+ * dieksekusi sebagai formula oleh Excel/Sheets (mis. =HYPERLINK(...) atau
+ * =cmd|' /C calc'!A0). Netralkan dengan prefix tanda kutip tunggal. Angka
+ * asli (tipe number, termasuk negatif) tidak disentuh.
+ */
+const FORMULA_START = /^[=+\-@\t\r]/;
+
+export function csvCell(v: unknown, delim: string): string {
   if (v === null || v === undefined) return "";
-  const s = typeof v === "string" ? v : String(v);
+  let s = typeof v === "string" ? v : String(v);
+  if (typeof v === "string" && FORMULA_START.test(s)) s = `'${s}`;
   if (s.includes(delim) || NEEDS_QUOTE.test(s)) {
     return `"${s.replace(/"/g, '""')}"`;
   }

@@ -3,6 +3,8 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { Send, Sparkles, User, Bot, Cpu, Database } from "lucide-react";
 import { EngineResult } from "@/lib/engine";
 import { answerQuery, suggestQuestions, QueryAnswer } from "@/lib/engine/query";
+import { maskRecord, maskText, maskTopValues } from "@/lib/privacy/pii";
+import { systematicSample } from "@/lib/engine/stats";
 
 type Msg = {
   role: "user" | "ai";
@@ -26,7 +28,7 @@ function buildChatContext(ctx: EngineResult) {
     rowCount: ctx.rowCount,
     columnCount: ctx.columnCount,
     domain: `${ctx.domain.name}${ctx.domain.description ? " — " + ctx.domain.description : ""}`,
-    userContext: ctx.userContext,
+    userContext: ctx.userContext ? maskText(ctx.userContext) : undefined,
     conclusion: ctx.conclusion,
     columns: ctx.profile.slice(0, 30).map((p) => ({
       name: p.name,
@@ -36,12 +38,15 @@ function buildChatContext(ctx: EngineResult) {
       median: p.summary?.median,
       min: p.summary?.min,
       max: p.summary?.max,
-      topValues: p.topValues?.slice(0, 3).map((t) => ({
-        value: String(t.value),
-        count: t.count,
-      })),
+      topValues: p.topValues
+        ? maskTopValues(
+            p.name,
+            p.topValues.slice(0, 3).map((t) => ({ value: String(t.value), count: t.count })),
+          )
+        : undefined,
     })),
-    sample: ctx.tableSnapshot.rows.slice(0, 5),
+    // Sampel sistematik (tersebar, bukan 5 baris teratas) + PII disamarkan di browser.
+    sample: systematicSample(ctx.tableSnapshot.rows, 5).map((r) => maskRecord(r)),
     insights: ctx.insights.slice(0, 4),
   };
 }

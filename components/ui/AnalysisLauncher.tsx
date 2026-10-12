@@ -3,6 +3,8 @@ import { useState } from "react";
 import { Sparkles, Send, Loader2, AlertTriangle, Cpu } from "lucide-react";
 import { analyzeFile, quickInspect, EngineResult, Inspection } from "@/lib/engine";
 import DataPrepWizard, { ConfirmConfig } from "./DataPrepWizard";
+import { maskRecord, maskText } from "@/lib/privacy/pii";
+import { systematicSample } from "@/lib/engine/stats";
 
 export type AiResult = EngineResult;
 
@@ -95,8 +97,8 @@ export default function AnalysisLauncher({ files, onComplete, onInspectStart, on
               fileName: result.fileName,
               rowCount: result.rowCount,
               domain: `${result.domain.name}${result.domain.description ? " — " + result.domain.description : ""}`,
-              userPrompt: config.prompt,
-              userContext: config.contextNote,
+              userPrompt: maskText(config.prompt ?? ""),
+              userContext: config.contextNote ? maskText(config.contextNote) : undefined,
               columns: result.profile.slice(0, 20).map((p) => ({
                 name: p.name,
                 type: p.type,
@@ -111,6 +113,8 @@ export default function AnalysisLauncher({ files, onComplete, onInspectStart, on
                 r2: t.r2,
                 startValue: t.startValue,
                 endValue: t.endValue,
+                pValue: t.pValue,
+                significant: t.significant,
               })),
               correlations: result.analysis.correlations.slice(0, 5).map((c) => ({
                 a: c.a,
@@ -125,7 +129,8 @@ export default function AnalysisLauncher({ files, onComplete, onInspectStart, on
                 topZscore: a.topExample?.zscore,
               })),
               kpis: result.kpis,
-              sample: result.tableSnapshot.rows.slice(0, 5),
+              // Sampel sistematik (tersebar di seluruh data) + PII disamarkan.
+              sample: systematicSample(result.tableSnapshot.rows, 5).map((r) => maskRecord(r)),
             },
           }),
         });
@@ -256,7 +261,7 @@ export default function AnalysisLauncher({ files, onComplete, onInspectStart, on
               context: {
                 fileName: result.fileName,
                 domain: result.domain.name,
-                userContext: config.contextNote,
+                userContext: config.contextNote ? maskText(config.contextNote) : undefined,
                 charts: chartReqs,
               },
             }),
@@ -321,7 +326,7 @@ export default function AnalysisLauncher({ files, onComplete, onInspectStart, on
           <div>
             <p className="font-syne font-bold text-white">Beri arahan ke Grafio Engine</p>
             <p className="text-xs text-muted">
-              <span className="text-cyan font-medium">Local statistical engine</span> · OLS regression + Pearson + Z-score · 100% client-side, gratis
+              <span className="text-cyan font-medium">Local statistical engine</span> · OLS + uji signifikansi · Pearson + koreksi FDR · IQR/MAD · 100% client-side, gratis
             </p>
           </div>
         </div>
