@@ -7,15 +7,16 @@ import {
   Sparkles, Trophy, Lock, Check, Brain, BookOpen,
   Loader2, AlertCircle, Coins, Calendar,
 } from "lucide-react";
-import { getBrowserSupabase, SUPABASE_CONFIGURED } from "@/lib/db/supabase";
+import { SUPABASE_CONFIGURED } from "@/lib/db/supabase";
 import {
   CATEGORY_LABEL, CATEGORY_EMOJI, thisWeekStartWIB,
-  type QuizRow, type QuizCategory, type QuizAttemptRow,
+  type QuizCategory,
 } from "@/lib/quiz/types";
+import type { PublicQuizSummary } from "@/lib/quiz/server";
 
 type QuizCardData = {
-  quiz: Pick<QuizRow, "id" | "title" | "category" | "slot" | "questions">;
-  attempt: Pick<QuizAttemptRow, "score" | "total" | "credits_awarded"> | null;
+  quiz: Pick<PublicQuizSummary, "id" | "title" | "category" | "slot" | "question_count">;
+  attempt: PublicQuizSummary["attempt"];
 };
 
 export default function QuizListPage() {
@@ -33,64 +34,33 @@ export default function QuizListPage() {
         setLoading(false);
         return;
       }
-      const sb = getBrowserSupabase();
-      if (!sb) {
-        setError("Supabase tidak tersedia.");
-        setLoading(false);
-        return;
-      }
-
-      const { data: auth } = await sb.auth.getUser();
-      if (!auth?.user) {
+      // Lewat API server — tabel quizzes berisi kunci jawaban dan tidak
+      // boleh dibaca langsung dari browser.
+      const res = await fetch("/api/quiz", { cache: "no-store" });
+      if (cancelled) return;
+      if (res.status === 401) {
         setNeedLogin(true);
         setLoading(false);
         return;
       }
-
-      const weekStart = thisWeekStartWIB();
-      // Fetch quizzes minggu ini + attempt user paralel
-      const [{ data: quizzes, error: qErr }, { data: attempts }] = await Promise.all([
-        sb
-          .from("quizzes")
-          .select("id, title, category, slot, questions")
-          .eq("week_start", weekStart)
-          .order("category")
-          .order("slot"),
-        sb
-          .from("quiz_attempts")
-          .select("quiz_id, score, total, credits_awarded")
-          .eq("user_id", auth.user.id),
-      ]);
+      const data = (await res.json().catch(() => ({}))) as {
+        quizzes?: PublicQuizSummary[];
+        credits?: number;
+        error?: string;
+      };
       if (cancelled) return;
-      if (qErr) {
-        setError(qErr.message);
+      if (!res.ok) {
+        setError(data.error ?? "Gagal memuat quiz.");
         setLoading(false);
         return;
       }
-
-      type AttemptLite = {
-        quiz_id: string;
-        score: number;
-        total: number;
-        credits_awarded: number;
-      };
-      type QuizLite = QuizCardData["quiz"];
-      const attemptByQuiz = new Map<string, AttemptLite>(
-        ((attempts ?? []) as AttemptLite[]).map((a) => [a.quiz_id, a]),
+      setItems(
+        (data.quizzes ?? []).map((q) => ({
+          quiz: { id: q.id, title: q.title, category: q.category, slot: q.slot, question_count: q.question_count },
+          attempt: q.attempt,
+        })),
       );
-      const cards: QuizCardData[] = ((quizzes ?? []) as QuizLite[]).map((q) => ({
-        quiz: q,
-        attempt: attemptByQuiz.get(q.id) ?? null,
-      }));
-      setItems(cards);
-
-      // Credits
-      const { data: profile } = await sb
-        .from("profiles")
-        .select("credits")
-        .eq("id", auth.user.id)
-        .single();
-      if (profile) setCredits(profile.credits ?? 0);
+      setCredits(data.credits ?? 0);
 
       setLoading(false);
     };
@@ -142,7 +112,7 @@ export default function QuizListPage() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-syne font-bold text-white text-sm mb-1">
-                Jawab 10 soal — dapat credits bonus
+                Jawab soal kuis — dapat credits bonus
               </p>
               <p className="text-xs text-muted leading-relaxed">
                 Skor ≥90% = <span className="text-mint font-semibold">+3 credits</span>{" "}
@@ -267,7 +237,7 @@ function QuizCard({
       <h3 className="font-syne font-bold text-white text-base leading-tight mb-1">
         {quiz.title}
       </h3>
-      <p className="text-xs text-muted">{quiz.questions.length} soal · ~5 menit</p>
+      <p className="text-xs text-muted">{quiz.question_count} soal · ~5 menit</p>
 
       <div className="mt-4 pt-3 border-t border-borderColor">
         {done ? (

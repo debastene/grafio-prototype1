@@ -168,7 +168,16 @@ create policy "profile self read"
 drop policy if exists "profile self update" on public.profiles;
 create policy "profile self update"
     on public.profiles for update
-    using (auth.uid() = id);
+    using (auth.uid() = id)
+    with check (auth.uid() = id);
+
+-- RLS membatasi BARIS, bukan KOLOM. Tanpa ini user bisa
+-- `update profiles set plan = 'pro'` untuk barisnya sendiri dari browser.
+-- plan / requested_plan / trial_ends_at / credits hanya boleh diubah server
+-- (service role) atau admin via SQL editor.
+revoke insert, update, delete on public.profiles from anon;
+revoke update on public.profiles from authenticated;
+grant update (name, phone, social_media) on public.profiles to authenticated;
 
 -- Projects: full CRUD on own rows only
 drop policy if exists "projects self read" on public.projects;

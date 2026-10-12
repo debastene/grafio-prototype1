@@ -8,16 +8,17 @@ import {
   ArrowLeft, ArrowRight, Check, X, Loader2, AlertCircle,
   Trophy, Sparkles, Coins, RotateCcw, Brain,
 } from "lucide-react";
-import { getBrowserSupabase, SUPABASE_CONFIGURED } from "@/lib/db/supabase";
-import { CATEGORY_LABEL, CATEGORY_EMOJI, type QuizQuestion } from "@/lib/quiz/types";
+import { SUPABASE_CONFIGURED } from "@/lib/db/supabase";
+import { CATEGORY_LABEL, CATEGORY_EMOJI } from "@/lib/quiz/types";
+import type { PublicQuiz } from "@/lib/quiz/server";
 
 type Quiz = {
   id: string;
   title: string;
   category: "datsci" | "common";
-  // Soal yang ditampilkan ke user — TIDAK termasuk correct_idx & explanation
-  // (kita strip di client biar tidak ngintip via devtools). correct_idx & explanation
-  // dikembalikan setelah submit oleh /api/quiz/submit.
+  // Soal yang ditampilkan ke user — server TIDAK pernah mengirim correct_idx &
+  // explanation sebelum submit (dulu di-strip di client, padahal sudah
+  // terlihat di tab Network). Keduanya dikembalikan oleh /api/quiz/submit.
   questions: { q: string; choices: string[] }[];
 };
 
@@ -64,54 +65,34 @@ export default function QuizPlayerPage() {
         setLoading(false);
         return;
       }
-      const sb = getBrowserSupabase();
-      if (!sb) {
-        setError("Supabase tidak tersedia.");
-        setLoading(false);
-        return;
-      }
-      const { data: auth } = await sb.auth.getUser();
-      if (!auth?.user) {
-        router.push("/login?next=/quiz");
-        return;
-      }
-
-      // Cek kalau user sudah pernah submit
-      const { data: existing } = await sb
-        .from("quiz_attempts")
-        .select("score, total, credits_awarded")
-        .eq("user_id", auth.user.id)
-        .eq("quiz_id", params.id)
-        .maybeSingle();
-
-      const { data: q, error: qErr } = await sb
-        .from("quizzes")
-        .select("id, title, category, questions")
-        .eq("id", params.id)
-        .single();
+      const res = await fetch(`/api/quiz/${encodeURIComponent(params.id)}`, { cache: "no-store" });
       if (cancelled) return;
-      if (qErr || !q) {
-        setError("Quiz tidak ditemukan atau sudah kadaluwarsa.");
+      if (res.status === 401) {
+        router.push(`/login?next=${encodeURIComponent(`/quiz/${params.id}`)}`);
+        return;
+      }
+      const data = (await res.json().catch(() => ({}))) as PublicQuiz & { error?: string };
+      if (cancelled) return;
+      if (!res.ok) {
+        setError(data.error ?? "Quiz tidak ditemukan atau sudah kadaluwarsa.");
+        setLoading(false);
+        return;
+      }
+      if (data.expired && !data.attempt) {
+        setError("Kuis ini sudah kadaluwarsa — kerjakan kuis minggu ini.");
         setLoading(false);
         return;
       }
 
-      const rawQs = q.questions as QuizQuestion[];
       const stripped: Quiz = {
-        id: q.id,
-        title: q.title,
-        category: q.category,
-        questions: rawQs.map((qq) => ({ q: qq.q, choices: qq.choices })),
+        id: data.id,
+        title: data.title,
+        category: data.category,
+        questions: data.questions,
       };
       setQuiz(stripped);
       setAnswers(new Array(stripped.questions.length).fill(null));
-      if (existing) {
-        setPreviousAttempt({
-          score: existing.score,
-          total: existing.total,
-          credits_awarded: existing.credits_awarded,
-        });
-      }
+      if (data.attempt) setPreviousAttempt(data.attempt);
       setLoading(false);
     };
     run();
