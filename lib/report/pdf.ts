@@ -23,6 +23,8 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { EngineResult } from "@/lib/engine";
+import { kmoLabel } from "@/lib/engine/multivariate";
+import { formatByType, formatP } from "@/lib/engine/stats";
 import { SITE_HOST } from "@/lib/site";
 
 // ============================================================
@@ -207,9 +209,12 @@ class Paper {
     }
   }
 
-  /** Sub-section: uppercase tracked-out label. */
-  subhead(text: string): void {
-    this.ensureSpace(22);
+  /**
+   * Sub-section: uppercase tracked-out label. `keepWith` = tinggi konten
+   * sesudahnya (chart) supaya judul tidak tertinggal sendirian di dasar halaman.
+   */
+  subhead(text: string, keepWith = 0): void {
+    this.ensureSpace(22 + keepWith);
     this.y += 6;
     this.doc.setFont("helvetica", "bold");
     this.doc.setFontSize(8.5);
@@ -315,7 +320,9 @@ class Paper {
       this.doc.setFontSize(7);
       this.doc.setTextColor(...TH.inkMuted);
       this.doc.setCharSpace(1.2);
-      this.doc.text(safeText(k.label).toUpperCase(), x + 12, startY + 20);
+      let label = safeText(k.label).toUpperCase();
+      while (label.length > 4 && this.doc.getTextWidth(label) > w - 20) label = label.slice(0, -2) + ".";
+      this.doc.text(label, x + 12, startY + 20);
       this.doc.setCharSpace(0);
       // Value
       this.doc.setFont("times", "bold");
@@ -401,8 +408,11 @@ class Paper {
           this.doc.line(tableX, data.cell.y + data.cell.height, tableX + tableW, data.cell.y + data.cell.height);
         }
       },
-      margin: { left: MARGIN_X, right: MARGIN_X },
-      didDrawPage: () => this.paintBg(),
+      // top/bottom: tabel yang berlanjut ke halaman baru tidak menimpa header/footer.
+      // JANGAN cat background di didDrawPage — hook itu jalan SETELAH tabel
+      // digambar, jadi persegi putihnya menutupi seluruh isi halaman. Kertas
+      // PDF sudah putih secara default.
+      margin: { left: MARGIN_X, right: MARGIN_X, top: MARGIN_TOP, bottom: MARGIN_BOTTOM },
     });
 
     // Bottom border below table
@@ -530,6 +540,150 @@ class Paper {
     lines.forEach((ln, i) => this.doc.text(ln, MARGIN_X + numW + 4, this.y + 30 + i * 13));
 
     this.y += cardH + 4;
+  }
+
+  /**
+   * Scree plot — batang % variasi per komponen. Garis putus-putus = kriteria
+   * Kaiser: nilai eigen 1 setara dengan 1/p variasi (rata-rata satu kolom).
+   */
+  screeChart(explained: number[]): void {
+    const n = explained.length;
+    if (n === 0) return;
+    const h = 110;
+    const padTop = 14;
+    this.ensureSpace(h + padTop + 30);
+    const x0 = MARGIN_X + 30;
+    const w = CONTENT_W - 30;
+    const y0 = this.y + padTop;
+    const kaiser = 1 / n;
+    const yMax = Math.min(1, Math.ceil(Math.max(...explained, kaiser) * 10) / 10);
+    const sy = (v: number) => y0 + h - (v / yMax) * h;
+    const doc = this.doc;
+
+    // Sumbu Y: 0, setengah, maks
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    doc.setTextColor(...TH.inkMuted);
+    for (const t of [0, yMax / 2, yMax]) {
+      const label = `${Math.round(t * 100)}%`;
+      doc.text(label, x0 - 6 - doc.getTextWidth(label), sy(t) + 2.5);
+      doc.setDrawColor(...TH.ruleSoft);
+      doc.setLineWidth(0.3);
+      doc.line(x0, sy(t), x0 + w, sy(t));
+    }
+
+    const slot = w / n;
+    const barW = Math.min(34, slot * 0.6);
+    explained.forEach((e, i) => {
+      const cx = x0 + (i + 0.5) * slot;
+      const top = sy(e);
+      doc.setFillColor(...(e > kaiser ? TH.brand : TH.brandLight));
+      doc.rect(cx - barW / 2, top, barW, y0 + h - top, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7.5);
+      doc.setTextColor(...TH.ink);
+      const v = `${(e * 100).toFixed(0)}%`;
+      doc.text(v, cx - doc.getTextWidth(v) / 2, top - 3);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(...TH.inkMuted);
+      const lbl = `PC${i + 1}`;
+      doc.text(lbl, cx - doc.getTextWidth(lbl) / 2, y0 + h + 11);
+    });
+
+    // Garis Kaiser
+    const ky = sy(kaiser);
+    doc.setDrawColor(...TH.warning);
+    doc.setLineWidth(0.7);
+    doc.setLineDashPattern([3, 2], 0);
+    doc.line(x0, ky, x0 + w, ky);
+    doc.setLineDashPattern([], 0);
+    doc.setFont("times", "italic");
+    doc.setFontSize(8);
+    doc.setTextColor(...TH.warning);
+    const kl = "Kaiser (nilai eigen = 1)";
+    doc.text(kl, x0 + w - doc.getTextWidth(kl), ky - 3);
+
+    this.y = y0 + h + 26;
+  }
+
+  /**
+   * Scatter plot PC1 x PC2. `g` = nomor klaster (1..k) untuk warna, 0 = tanpa klaster.
+   */
+  scatterPlot(opts: {
+    points: { x: number; y: number; g: number }[];
+    colors: [number, number, number][];
+    legend: { label: string; g: number }[];
+    xLabel: string;
+    yLabel: string;
+  }): void {
+    const pts = opts.points;
+    if (pts.length === 0) return;
+    const h = 220;
+    this.ensureSpace(h + 56);
+    const doc = this.doc;
+    const x0 = MARGIN_X + 18;
+    const w = CONTENT_W - 18;
+    const y0 = this.y;
+
+    const extent = (vs: number[]): [number, number] => {
+      let lo = Math.min(...vs);
+      let hi = Math.max(...vs);
+      if (hi - lo < 1e-9) {
+        lo -= 1;
+        hi += 1;
+      }
+      const pad = (hi - lo) * 0.06;
+      return [lo - pad, hi + pad];
+    };
+    const [xmin, xmax] = extent(pts.map((p) => p.x));
+    const [ymin, ymax] = extent(pts.map((p) => p.y));
+    const sx = (v: number) => x0 + ((v - xmin) / (xmax - xmin)) * w;
+    const sy = (v: number) => y0 + h - ((v - ymin) / (ymax - ymin)) * h;
+
+    // Bingkai + garis nol (rata-rata setelah standardisasi)
+    doc.setDrawColor(...TH.rule);
+    doc.setLineWidth(0.5);
+    doc.rect(x0, y0, w, h);
+    doc.setDrawColor(...TH.ruleSoft);
+    doc.setLineDashPattern([2, 2], 0);
+    if (xmin < 0 && xmax > 0) doc.line(sx(0), y0, sx(0), y0 + h);
+    if (ymin < 0 && ymax > 0) doc.line(x0, sy(0), x0 + w, sy(0));
+    doc.setLineDashPattern([], 0);
+
+    for (const p of pts) {
+      const c = p.g > 0 ? opts.colors[(p.g - 1) % opts.colors.length] : TH.brand;
+      doc.setFillColor(...c);
+      doc.circle(sx(p.x), sy(p.y), 1.7, "F");
+    }
+
+    // Label sumbu
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(...TH.inkMuted);
+    const xl = safeText(opts.xLabel);
+    doc.text(xl, x0 + w / 2 - doc.getTextWidth(xl) / 2, y0 + h + 12);
+    const yl = safeText(opts.yLabel);
+    doc.text(yl, x0 - 6, y0 + h / 2 + doc.getTextWidth(yl) / 2, { angle: 90 });
+
+    // Legenda
+    let lx = x0;
+    let ly = y0 + h + 28;
+    doc.setFontSize(8);
+    for (const item of opts.legend) {
+      const txt = safeText(item.label);
+      const itemW = 12 + doc.getTextWidth(txt) + 14;
+      if (lx + itemW > x0 + w) {
+        lx = x0;
+        ly += 12;
+      }
+      const c = item.g > 0 ? opts.colors[(item.g - 1) % opts.colors.length] : TH.brand;
+      doc.setFillColor(...c);
+      doc.circle(lx + 3, ly - 2.5, 3, "F");
+      doc.setTextColor(...TH.inkSoft);
+      doc.text(txt, lx + 10, ly);
+      lx += itemW;
+    }
+    this.y = ly + 16;
   }
 
   spacer(h: number): void {
@@ -834,6 +988,12 @@ function buildSummary(p: Paper, result: EngineResult, aiReport: AiReportContent 
     },
     { label: "Pasangan Korelasi", value: `${result.analysis.correlations.length} signifikan (|r| >= 0.3, q < 0.05)` },
     { label: "Outlier (di luar 1.5x IQR)", value: String(result.analysis.anomalies.reduce((a, x) => a + x.count, 0)) },
+    {
+      label: "Klaster k-means",
+      value: result.multivariate?.clusters
+        ? `k = ${result.multivariate.clusters.k}, silhouette ${result.multivariate.clusters.silhouette.toFixed(2)} (struktur ${result.multivariate.clusters.structure})`
+        : "tidak dihitung",
+    },
     { label: "Format Angka", value: result.numberFormat.toUpperCase() },
     { label: "Total Observasi", value: result.rowCount.toLocaleString("id") },
   ]);
@@ -912,6 +1072,153 @@ function buildCorrelations(p: Paper, result: EngineResult) {
   p.paragraph(
     "Catatan interpretasi. Koefisien korelasi mengukur asosiasi linier, bukan kausalitas. Nilai r mendekati +/-1 mengindikasikan hubungan kuat, namun verifikasi melalui domain knowledge atau eksperimen terkontrol tetap diperlukan sebelum mengambil kesimpulan kausal.",
     { italic: true, color: TH.inkMuted, size: 9.5 },
+  );
+}
+
+/** Warna klaster untuk kertas putih — urutan sama dengan panel dashboard. */
+const CLUSTER_RGB: [number, number, number][] = [
+  [6, 95, 175], // biru
+  [217, 119, 6], // amber
+  [219, 39, 119], // pink
+  [21, 128, 61], // hijau
+  [124, 58, 237], // violet
+  [100, 116, 139], // abu
+];
+
+function buildMultivariate(p: Paper, result: EngineResult) {
+  const mv = result.multivariate;
+  if (!mv || (!mv.pca && !mv.clusters)) return;
+  const { pca, clusters } = mv;
+
+  p.newPage();
+  p.section(
+    "Analisis Multivariat",
+    `PCA matriks korelasi dan klaster k-means pada ${mv.n.toLocaleString("id")} baris lengkap x ${mv.columns.length} kolom numerik yang distandardisasi (z-score): ${mv.columns.join(", ")}.`,
+  );
+
+  if (pca) {
+    const reasons = [
+      ...(pca.bartlett.pValue >= 0.05 ? ["uji Bartlett tidak signifikan"] : []),
+      ...((pca.kmo ?? 0) < 0.6 ? [`KMO ${pca.kmo === null ? "tidak terhitung" : pca.kmo.toFixed(3)} < 0.6`] : []),
+    ];
+    p.subhead("Uji Kelayakan PCA");
+    p.defList([
+      {
+        label: "Bartlett",
+        value: `chi-kuadrat = ${pca.bartlett.chi2.toFixed(1)} (df ${pca.bartlett.df}), ${formatP(pca.bartlett.pValue)} -- ${
+          pca.bartlett.pValue < 0.05 ? "matriks korelasi berbeda nyata dari matriks identitas" : "korelasi antar kolom tidak signifikan"
+        }`,
+      },
+      // 3 desimal: 0.598 tidak boleh tampil "0.60" lalu dinyatakan < 0.6.
+      { label: "KMO", value: pca.kmo === null ? "tidak terhitung (matriks singular)" : `${pca.kmo.toFixed(3)} (${kmoLabel(pca.kmo)})` },
+      { label: "Kaiser", value: `${pca.kaiserComponents} komponen dengan nilai eigen > 1` },
+    ]);
+    if (reasons.length) {
+      p.paragraph(
+        `Syarat kelayakan belum terpenuhi (${reasons.join("; ")}): pola korelasi antar kolom kurang mendukung peringkasan dengan PCA. Tafsirkan komponen dengan hati-hati.`,
+        { italic: true, color: TH.warning, size: 9.5 },
+      );
+    }
+
+    p.subhead("Variansi Dijelaskan (Scree Plot)", 150);
+    p.screeChart(pca.explained);
+    p.paragraph(
+      `PC1 dan PC2 bersama-sama menjelaskan ${(pca.cumulative[Math.min(1, pca.cumulative.length - 1)] * 100).toFixed(0)}% variasi data.`,
+      { size: 10 },
+    );
+
+    p.subhead("Loading Komponen");
+    p.table({
+      head: ["Kolom", "PC1", "PC2"],
+      body: pca.columns.map((c, i) => {
+        const cell = (v: number) => `${v.toFixed(2)}${Math.abs(v) >= 0.5 ? " *" : ""}`;
+        return [c, cell(pca.loadings[i][0]), cell(pca.loadings[i][1] ?? 0)];
+      }),
+      align: ["left", "right", "right"],
+    });
+    p.paragraph(
+      "Loading = korelasi kolom dengan komponen. Tanda (*) menandai |loading| >= 0.5: kolom tersebut ikut membentuk komponen.",
+      { italic: true, color: TH.inkMuted, size: 9 },
+    );
+  }
+
+  if (pca && mv.points.length > 0) {
+    const tiny = new Set(clusters?.tinyClusters ?? []);
+    p.subhead("Proyeksi PC1 x PC2", 280);
+    p.scatterPlot({
+      points: mv.points.map((pt) => ({ x: pt.x, y: pt.y, g: pt.cluster })),
+      colors: CLUSTER_RGB,
+      legend: clusters
+        ? clusters.profiles.map((g) => ({
+            g: g.cluster,
+            label: `Kelompok ${g.cluster} (${Math.round(g.share * 100)}%)${tiny.has(g.cluster) ? " - outlier?" : ""}`,
+          }))
+        : [{ g: 0, label: "Baris data" }],
+      xLabel: `PC1 (${(pca.explained[0] * 100).toFixed(0)}% variasi)`,
+      yLabel: `PC2 (${((pca.explained[1] ?? 0) * 100).toFixed(0)}% variasi)`,
+    });
+    if (mv.points.length < mv.n) {
+      p.paragraph(`Menampilkan ${mv.points.length} dari ${mv.n.toLocaleString("id")} baris (sampel sistematis).`, {
+        italic: true,
+        color: TH.inkMuted,
+        size: 9,
+      });
+    }
+  }
+
+  if (clusters) {
+    const tiny = new Set(clusters.tinyClusters ?? []);
+    const fmt = (col: string, v: number) => {
+      const prof = result.profile.find((x) => x.name === col);
+      return prof ? formatByType(v, prof.type, prof.name) : fmtNum(v);
+    };
+    p.subhead("Klaster k-means");
+    p.paragraph(
+      `k = ${clusters.k} dipilih dari silhouette tertinggi (${clusters.silhouetteByK
+        .map((s) => `k${s.k} = ${s.silhouette.toFixed(2)}`)
+        .join(", ")}). Silhouette ${clusters.silhouette.toFixed(2)} berarti struktur kelompok ${clusters.structure} (Kaufman & Rousseeuw: > 0.70 kuat, > 0.50 wajar, > 0.25 lemah).`,
+    );
+    if (clusters.structure === "tidak ada") {
+      p.paragraph(
+        "Data tidak membentuk kelompok yang jelas pada kolom-kolom ini. Pembagian di bawah hanya potongan dari satu sebaran, bukan segmen alami.",
+        { italic: true, color: TH.warning, size: 9.5 },
+      );
+    }
+    p.table({
+      head: ["Kelompok", "Baris", "Porsi", "Ciri utama (rata-rata kelompok)"],
+      body: clusters.profiles.map((g) => [
+        `${g.cluster}${tiny.has(g.cluster) ? " (outlier?)" : ""}`,
+        g.size.toLocaleString("id"),
+        `${Math.round(g.share * 100)}%`,
+        [
+          ...g.high.map((x) => `${x.column} tinggi (${fmt(x.column, g.centroid[x.column])})`),
+          ...g.low.map((x) => `${x.column} rendah (${fmt(x.column, g.centroid[x.column])})`),
+        ].join("; ") || "mendekati rata-rata di semua kolom",
+      ]),
+      align: ["left", "right", "right", "left"],
+    });
+    if (tiny.size > 0) {
+      p.paragraph(
+        "Kelompok berisi < 5% baris ditandai sebagai kemungkinan outlier, bukan segmen: periksa barisnya satu per satu sebelum dijadikan target.",
+        { italic: true, color: TH.inkMuted, size: 9 },
+      );
+    }
+  }
+
+  // Kolom yang tidak diikutkan, dikelompokkan per alasan.
+  const byReason = new Map<string, string[]>();
+  for (const e of mv.excluded) byReason.set(e.reason, [...(byReason.get(e.reason) ?? []), e.column]);
+  const notes = [
+    ...mv.notes,
+    ...Array.from(byReason, ([reason, columns]) => `Tidak diikutkan (${reason}): ${columns.join(", ")}.`),
+  ];
+  if (notes.length) {
+    p.subhead("Catatan Metode");
+    for (const n of notes) p.paragraph(n, { italic: true, color: TH.inkMuted, size: 9 });
+  }
+  p.paragraph(
+    "PCA dan klaster bersifat eksploratif: keduanya merangkum pola, bukan membuktikan sebab-akibat. Validasi kelompok dengan konteks bisnis sebelum dipakai untuk keputusan.",
+    { italic: true, color: TH.inkMuted, size: 9 },
   );
 }
 
@@ -1064,6 +1371,7 @@ export async function generateReport(
   buildInsights(p, result);
   buildProfile(p, result);
   buildCorrelations(p, result);
+  buildMultivariate(p, result);
   buildTrends(p, result);
   buildRecommendations(p, result, aiReport);
 

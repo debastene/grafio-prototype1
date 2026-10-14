@@ -11,6 +11,17 @@ export const metadata = {
 
 const releases = [
   {
+    version: "v2.4.0",
+    date: "14 Oktober 2026",
+    headline: "Laporan PDF Multivariat",
+    changes: [
+      { type: "feature", text: "Laporan PDF kini memuat bab Analisis Multivariat: uji Bartlett & KMO, scree plot dengan garis Kaiser, tabel loading, proyeksi PC1 × PC2 berwarna per klaster, dan profil tiap kelompok." },
+      { type: "fix", text: "Halaman PDF yang berisi tabel (mis. Profil Variabel) sebelumnya tercetak kosong — sekarang tampil utuh, dan tabel panjang tidak lagi menimpa header/footer halaman berikutnya." },
+      { type: "fix", text: "Deteksi domain tidak lagi melabeli data pelanggan sebagai \"Survei & Riset\" hanya karena ada kolom rating — kata ambigu (rating, nilai, harga, usia) kini berbobot setengah." },
+      { type: "security", text: "Kuis sepenuhnya lewat fungsi database yang aman; jalur lama yang membaca tabel kuis langsung sudah dihapus." },
+    ],
+  },
+  {
     version: "v2.3.0",
     date: "14 Oktober 2026",
     headline: "Analisis Multivariat: PCA & Klaster",

@@ -49,6 +49,8 @@ export type QuizAttemptRow = {
 /**
  * Calculate credits awarded based on score percentage.
  * Reward scale di-tune kecil sengaja supaya user masih tertarik subscribe.
+ * Sumber kebenaran ada di fungsi SQL submit_quiz (kredit diberikan di DB);
+ * fungsi ini cerminannya — ubah keduanya bersamaan.
  */
 export function creditsForScore(score: number, total: number): number {
   if (total === 0) return 0;

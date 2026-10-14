@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const result = await submitQuiz(auth.sb, body.quiz_id, answers, auth.userId);
+    const result = await submitQuiz(auth.sb, body.quiz_id, answers);
     if ("already_submitted" in result) {
       return NextResponse.json(
         {

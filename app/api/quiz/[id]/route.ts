@@ -21,7 +21,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const auth = await requireQuizUser();
   if (auth instanceof NextResponse) return auth;
   try {
-    return NextResponse.json(await getPublicQuiz(auth.sb, id, auth.userId));
+    return NextResponse.json(await getPublicQuiz(auth.sb, id));
   } catch (e) {
     return quizErrorResponse(e);
   }

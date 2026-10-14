@@ -16,7 +16,7 @@ export async function GET() {
   if (auth instanceof NextResponse) return auth;
   try {
     const [quizzes, { data: profile }] = await Promise.all([
-      listWeekQuizzes(auth.sb, auth.userId),
+      listWeekQuizzes(auth.sb),
       auth.sb.from("profiles").select("credits").eq("id", auth.userId).maybeSingle(),
     ]);
     return NextResponse.json({ quizzes, credits: (profile as { credits?: number } | null)?.credits ?? 0 });

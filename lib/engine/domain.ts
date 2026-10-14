@@ -7,7 +7,7 @@
  *   - Tailor insight phrasing
  */
 
-import { ColProfile } from "./profile";
+import { ColProfile, tokenizeName } from "./profile";
 
 export type Domain = {
   id: string;
@@ -27,6 +27,12 @@ type Pattern = {
   emoji: string;
   description: string;
   columnHints: string[];
+  /**
+   * Kata yang dipakai lintas domain ("rating" ada di e-commerce & survei,
+   * "harga" di penjualan & properti, "usia" di data pelanggan & pasien) —
+   * bobotnya setengah, jadi tidak bisa menentukan domain sendirian.
+   */
+  weakHints?: string[];
   defaultIntent: Domain["defaultIntent"];
   promptBuilder: (matched: string[], allCols: string[]) => string[];
 };
@@ -47,10 +53,11 @@ const PATTERNS: Pattern[] = [
     emoji: "🌍",
     description: "Data agregat per-negara: ekonomi, populasi, sosial, geografi",
     columnHints: [
-      "country", "negara", "capital", "ibukota", "region", "continent", "benua",
+      "country", "negara", "capital", "ibukota", "continent", "benua",
       "gdp", "pdb", "population", "populasi", "life", "literacy", "literasi",
-      "area", "density", "currency", "iso", "code",
+      "density", "currency", "iso",
     ],
+    weakHints: ["region", "area", "code"],
     defaultIntent: "compare",
     promptBuilder: (m, all) => {
       const top = pickCol(all, ["gdp", "population", "income"]);
@@ -72,10 +79,13 @@ const PATTERNS: Pattern[] = [
     description: "Transaksi, produk, customer, revenue, dan metrik komersial",
     columnHints: [
       "order", "pesanan", "product", "produk", "customer", "pelanggan",
-      "price", "harga", "quantity", "qty", "jumlah",
-      "revenue", "sale", "penjualan", "discount", "diskon", "sku", "category",
-      "transaction", "transaksi", "invoice", "subtotal", "total",
+      "quantity", "qty", "revenue", "sale", "sales", "penjualan", "omzet",
+      "discount", "diskon", "sku", "transaction", "transaksi", "invoice", "subtotal",
+      "belanja", "pembelian", "purchase", "pembeli", "buyer", "penjual", "seller",
+      "member", "membership", "loyalty", "churn", "toko", "store", "merchant",
+      "cart", "keranjang", "checkout", "ongkir", "shipping",
     ],
+    weakHints: ["price", "harga", "jumlah", "total", "category", "kategori"],
     defaultIntent: "trend",
     promptBuilder: (m, all) => {
       const rev = pickCol(all, ["revenue", "sale", "penjualan", "total"]);
@@ -96,9 +106,10 @@ const PATTERNS: Pattern[] = [
     emoji: "💹",
     description: "Harga saham, return, volume, market cap, indikator finansial",
     columnHints: [
-      "stock", "saham", "ticker", "open", "close", "high", "low", "volume",
-      "return", "dividend", "market_cap", "ratio", "pe", "pbv",
+      "stock", "saham", "ticker", "dividend", "market_cap", "pe", "pbv", "ihsg", "emiten",
     ],
+    // OHLCV satu per satu ambigu ("high_school", "low_stock"); bersama-sama tetap kuat.
+    weakHints: ["open", "close", "high", "low", "volume", "return", "ratio"],
     defaultIntent: "trend",
     promptBuilder: (m, all) => {
       const close = pickCol(all, ["close", "price", "harga"]);
@@ -142,10 +153,11 @@ const PATTERNS: Pattern[] = [
     emoji: "🏥",
     description: "Data pasien, indikator klinis, treatment outcomes",
     columnHints: [
-      "patient", "pasien", "diagnosis", "age", "umur", "usia",
+      "patient", "pasien", "diagnosis",
       "blood", "darah", "heart", "jantung", "bmi", "bp", "cholesterol",
-      "treatment", "obat", "dosage", "symptom", "gejala",
+      "treatment", "obat", "dosage", "symptom", "gejala", "glucose", "glukosa",
     ],
+    weakHints: ["age", "umur", "usia"],
     defaultIntent: "correlation",
     promptBuilder: (m, all) => {
       const age = pickCol(all, ["age", "umur", "usia"]);
@@ -165,10 +177,11 @@ const PATTERNS: Pattern[] = [
     emoji: "🎓",
     description: "Nilai siswa, mahasiswa, IPK, hasil ujian",
     columnHints: [
-      "student", "siswa", "mahasiswa", "grade", "nilai", "score",
-      "subject", "matkul", "course", "school", "sekolah",
-      "gpa", "ipk", "exam", "ujian", "test", "rank",
+      "student", "siswa", "mahasiswa", "subject", "matkul", "course",
+      "school", "sekolah", "gpa", "ipk", "exam", "ujian", "nim", "nisn", "semester",
     ],
+    // "nilai" juga berarti "value" (nilai_transaksi); "score" ada di skor kredit.
+    weakHints: ["grade", "nilai", "score", "test", "rank"],
     defaultIntent: "compare",
     promptBuilder: (m, all) => {
       const score = pickCol(all, ["score", "nilai", "gpa", "ipk", "grade"]);
@@ -210,9 +223,10 @@ const PATTERNS: Pattern[] = [
     emoji: "🏠",
     description: "Listing properti, harga, lokasi, fitur rumah",
     columnHints: [
-      "property", "rumah", "house", "price", "harga", "bedroom", "kamar",
-      "bathroom", "square", "luas", "address", "alamat", "listing", "lot",
+      "property", "properti", "rumah", "house", "bedroom", "kamar",
+      "bathroom", "square", "luas", "listing", "sqft",
     ],
+    weakHints: ["price", "harga", "address", "alamat", "lot"],
     defaultIntent: "correlation",
     promptBuilder: (m, all) => {
       const price = pickCol(all, ["price", "harga"]);
@@ -232,9 +246,10 @@ const PATTERNS: Pattern[] = [
     emoji: "📡",
     description: "Pembacaan sensor, time series device, monitoring",
     columnHints: [
-      "timestamp", "sensor", "temperature", "suhu", "humidity", "kelembaban",
+      "sensor", "temperature", "suhu", "humidity", "kelembaban",
       "voltage", "device", "perangkat", "reading", "co2", "pressure",
     ],
+    weakHints: ["timestamp"],
     defaultIntent: "trend",
     promptBuilder: (m, all) => {
       const sensor = pickCol(all, ["temperature", "suhu", "humidity", "reading"]);
@@ -253,9 +268,9 @@ const PATTERNS: Pattern[] = [
     emoji: "🌐",
     description: "Sesi user, traffic, behavior, sumber trafik",
     columnHints: [
-      "session", "sesi", "user", "page", "halaman", "bounce",
-      "duration", "durasi", "source", "sumber", "referrer", "browser",
+      "session", "sesi", "page", "halaman", "bounce", "pageview", "referrer", "browser",
     ],
+    weakHints: ["user", "duration", "durasi", "source", "sumber"],
     defaultIntent: "ranking",
     promptBuilder: (m, all) => {
       const sess = pickCol(all, ["session", "user", "page"]);
@@ -275,9 +290,11 @@ const PATTERNS: Pattern[] = [
     emoji: "📋",
     description: "Respon survei, rating, kuesioner",
     columnHints: [
-      "respondent", "responden", "question", "answer", "rating", "scale",
-      "response", "feedback", "satisfaction", "kepuasan", "score",
+      "respondent", "responden", "question", "pertanyaan", "questionnaire", "kuesioner",
+      "answer", "jawaban", "likert", "feedback", "satisfaction", "kepuasan", "nps",
     ],
+    // "rating" juga ulasan produk di e-commerce — sendirian bukan bukti survei.
+    weakHints: ["rating", "scale", "skala", "response", "score"],
     defaultIntent: "compare",
     promptBuilder: (m, all) => {
       const rating = pickCol(all, ["rating", "score", "satisfaction"]);
@@ -293,11 +310,25 @@ const PATTERNS: Pattern[] = [
 ];
 
 /**
- * Compute a score for each pattern by counting matched column names.
+ * Skor satu hint terhadap satu nama kolom. Exact > token > substring.
+ * Substring hanya untuk hint >= 4 huruf: "age" ada di "percentage" dan
+ * "average", "iso" ada di "comparison" — terlalu banyak salah tangkap.
+ */
+function hintScore(nameLower: string, tokens: string[], hint: string): number {
+  if (nameLower === hint) return 5;
+  if (tokens.includes(hint)) return 4;
+  if (hint.length >= 4 && nameLower.includes(hint)) return 2;
+  return 0;
+}
+
+/**
+ * Skor tiap pola = jumlah skor hint yang cocok dengan nama kolom
+ * (hint lemah dihitung setengah). Domain dengan skor tertinggi menang;
+ * di bawah 4 → "Dataset Umum" (tidak cukup bukti).
  */
 export function detectDomain(profiles: ColProfile[]): Domain {
-  const colNamesLower = profiles.map((p) => p.name.toLowerCase());
   const allColNames = profiles.map((p) => p.name);
+  const cols = profiles.map((p) => ({ lower: p.name.toLowerCase(), tokens: tokenizeName(p.name) }));
 
   let bestPattern: Pattern | null = null;
   let bestScore = 0;
@@ -306,20 +337,18 @@ export function detectDomain(profiles: ColProfile[]): Domain {
   for (const pat of PATTERNS) {
     const matched: string[] = [];
     let score = 0;
-    for (const hint of pat.columnHints) {
-      for (let i = 0; i < colNamesLower.length; i++) {
-        const name = colNamesLower[i];
-        if (name === hint) {
-          score += 5;
-          matched.push(allColNames[i]);
-        } else if (name.split(/[_\s\-./]/).includes(hint)) {
-          score += 4;
-          matched.push(allColNames[i]);
-        } else if (name.includes(hint) && hint.length >= 3) {
-          score += 2;
+    const hints: [string, number][] = [
+      ...pat.columnHints.map((h): [string, number] => [h, 1]),
+      ...(pat.weakHints ?? []).map((h): [string, number] => [h, 0.5]),
+    ];
+    for (const [hint, weight] of hints) {
+      cols.forEach((c, i) => {
+        const sc = hintScore(c.lower, c.tokens, hint);
+        if (sc > 0) {
+          score += sc * weight;
           matched.push(allColNames[i]);
         }
-      }
+      });
     }
     if (score > bestScore) {
       bestScore = score;
