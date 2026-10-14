@@ -8,7 +8,7 @@ import {
   Mail, Lock, User, ArrowRight, Check, Building2, Hash, AlertTriangle, Sparkles,
   Gift, GraduationCap, Rocket, Crown,
 } from "lucide-react";
-import { signup, Plan } from "@/lib/auth/storage";
+import { MIN_PASSWORD_LENGTH, signup, Plan } from "@/lib/auth/storage";
 
 /** Plan yang boleh dipilih dari URL (?plan=…). Nilai lain → free. */
 const SELECTABLE_PLANS: Plan[] = ["free", "student", "pro", "custom"];
@@ -154,7 +154,7 @@ function SignupForm() {
           <form onSubmit={onSubmit} className="space-y-3">
             <Field icon={User} label="Nama lengkap" value={form.name} onChange={(v) => setForm({ ...form, name: v })} required />
             <Field icon={Mail} label="Email" type="email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} required />
-            <Field icon={Lock} label="Password" type="password" value={form.password} onChange={(v) => setForm({ ...form, password: v })} required minLength={6} />
+            <Field icon={Lock} label="Password (min. 8 karakter)" type="password" value={form.password} onChange={(v) => setForm({ ...form, password: v })} required minLength={MIN_PASSWORD_LENGTH} />
 
             {/* Student-specific fields */}
             {plan === "student" && (

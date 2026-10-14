@@ -50,8 +50,17 @@ tampil tapi nunjukin pesan setup). Setup gratis ~5 menit:
    - Tambahkan `NEXT_PUBLIC_SUPABASE_URL` dan `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - Untuk cron kuis: `SUPABASE_SERVICE_ROLE_KEY` dan `CRON_SECRET`
      (service role key JANGAN pernah diberi prefix `NEXT_PUBLIC_`)
+   - Rate limit global (disarankan): `UPSTASH_REDIS_REST_URL` +
+     `UPSTASH_REDIS_REST_TOKEN` dari https://console.upstash.com (Redis gratis,
+     region Singapore, tab "REST API"). Tanpa ini kuota AI dihitung per instance.
    - Opsional: `NEXT_PUBLIC_CONTACT_EMAIL`, `NEXT_PUBLIC_SITE_URL`
    - Redeploy
+
+6. **Auth hardening (Supabase dashboard)**
+   - **Authentication → Providers → Email**: "Confirm email" ON di production,
+     "Minimum password length" = 8 (sama dengan `MIN_PASSWORD_LENGTH`)
+   - **Authentication → URL Configuration**: Site URL = domain production,
+     Redirect URLs = `https://<domain>/auth/callback`
 
 ### Security model
 
@@ -67,6 +76,8 @@ tampil tapi nunjukin pesan setup). Setup gratis ~5 menit:
   (lihat `lib/server/aiGuard.ts`, `lib/server/aiSanitize.ts`)
 - Data pribadi disamarkan sebelum dikirim ke provider AI (`lib/privacy/pii.ts`)
 - Security headers (CSP, frame-ancestors, nosniff, dll) di `next.config.mjs`
+- Rate limit: Upstash Redis (global) dengan fallback in-memory — `lib/server/rateLimit.ts`
+- CI (`.github/workflows/ci.yml`): typecheck, test, `npm audit` (high+), build
 - Email + password disimpan + dikelola Supabase Auth (bcrypt hashing)
 
 ## Setup OpenRouter (AI Copilot)

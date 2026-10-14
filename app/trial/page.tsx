@@ -7,7 +7,7 @@ import Button from "@/components/ui/Button";
 import {
   Mail, Lock, User, Phone, AtSign, ArrowRight, Check, AlertTriangle, Gift,
 } from "lucide-react";
-import { signup } from "@/lib/auth/storage";
+import { MIN_PASSWORD_LENGTH, signup } from "@/lib/auth/storage";
 
 export default function TrialPage() {
   const router = useRouter();
@@ -88,7 +88,7 @@ export default function TrialPage() {
           <form onSubmit={onSubmit} className="space-y-3">
             <Field icon={User} label="Nama lengkap" value={form.name} onChange={(v) => setForm({ ...form, name: v })} required />
             <Field icon={Mail} label="Email aktif" type="email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} required placeholder="kamu@email.com" />
-            <Field icon={Lock} label="Password" type="password" value={form.password} onChange={(v) => setForm({ ...form, password: v })} required minLength={6} />
+            <Field icon={Lock} label="Password (min. 8 karakter)" type="password" value={form.password} onChange={(v) => setForm({ ...form, password: v })} required minLength={MIN_PASSWORD_LENGTH} />
             <Field icon={Phone} label="Nomor HP" type="tel" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} required placeholder="+62 812-..." />
             <Field icon={AtSign} label="Sosial Media" value={form.socialMedia} onChange={(v) => setForm({ ...form, socialMedia: v })} required placeholder="@username (IG / TikTok / lainnya)" />
 

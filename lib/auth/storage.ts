@@ -48,6 +48,12 @@ function clampSignupPlan(plan: Plan): Plan {
 
 const CACHE_KEY = "grafio.session.cache";
 
+/**
+ * Minimal panjang password. Samakan dengan Supabase → Authentication →
+ * Providers → Email → "Minimum password length" (default Supabase hanya 6).
+ */
+export const MIN_PASSWORD_LENGTH = 8;
+
 function isBrowser(): boolean {
   return typeof window !== "undefined";
 }
@@ -130,6 +136,9 @@ export async function signup(input: SignupInput): Promise<SignupResult> {
   const email = input.email.trim().toLowerCase();
   if (!email || !input.password || !input.name) {
     return { ok: false, error: "Email, password, dan nama wajib diisi." };
+  }
+  if (input.password.length < MIN_PASSWORD_LENGTH) {
+    return { ok: false, error: `Password minimal ${MIN_PASSWORD_LENGTH} karakter.` };
   }
 
   // Plan-specific validation
@@ -359,7 +368,7 @@ function friendlyAuthError(msg: string): string {
   if (lower.includes("email not confirmed"))
     return "Email belum dikonfirmasi. Cek inbox untuk link verifikasi.";
   if (lower.includes("password should be at least"))
-    return "Password minimal 6 karakter.";
+    return `Password minimal ${MIN_PASSWORD_LENGTH} karakter.`;
   if (lower.includes("network") || lower.includes("fetch"))
     return "Koneksi bermasalah. Coba lagi.";
   return msg;

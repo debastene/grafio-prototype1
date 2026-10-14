@@ -1,0 +1,44 @@
+# CI Grafio — jalan di setiap push & pull request.
+# Menangkap regresi sebelum Vercel men-deploy: typecheck, 160+ unit/regression
+# test (statistik, privasi, sanitasi API, rate limit), audit dependency
+# produksi, dan production build.
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit -p .
+
+      - name: Test
+        run: npm test
+
+      - name: Audit dependency produksi (high+)
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Build
+        run: npm run build

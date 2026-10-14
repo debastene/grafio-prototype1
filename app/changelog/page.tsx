@@ -11,6 +11,18 @@ export const metadata = {
 
 const releases = [
   {
+    version: "v2.2.0",
+    date: "14 Oktober 2026",
+    headline: "Next.js 15 & Rate Limit Global",
+    changes: [
+      { type: "improvement", text: "Upgrade ke Next.js 15.5 + React 19 — menutup advisory keamanan Next.js 14 yang tersisa (npm audit: 0 kerentanan di dependency produksi)." },
+      { type: "improvement", text: "Rate limit fitur AI bisa memakai Upstash Redis sehingga kuota berlaku global di semua server, bukan per instance." },
+      { type: "improvement", text: "Hero landing tampil tanpa menunggu JavaScript selesai dimuat (animasi CSS murni)." },
+      { type: "fix", text: "Password minimal 8 karakter." },
+      { type: "fix", text: "Testimoni karangan yang mencatut nama perusahaan diganti contoh skenario penggunaan; statistik landing hanya angka yang bisa diverifikasi." },
+    ],
+  },
+  {
     version: "v2.1.0",
     date: "12 Oktober 2026",
     headline: "Audit Keamanan & Ketepatan Statistik",

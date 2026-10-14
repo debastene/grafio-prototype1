@@ -22,9 +22,10 @@ import ExpandableFeatures from "@/components/ui/landing/ExpandableFeatures";
 import {
   Sparkles, Brain, FileSpreadsheet,
   ShieldCheck, BarChart3, MessageSquare, Wand2, Workflow,
-  FileDown, Layers, Eye, ArrowRight, Star, Check,
+  FileDown, Layers, Eye, ArrowRight, Check,
 } from "lucide-react";
 import { SITE_HOST } from "@/lib/site";
+import HeroReveal from "@/components/ui/motion/HeroReveal";
 
 // OrbitStar 3D = bespoke interactive globe-style centerpiece. Drag untuk
 // rotate, click label untuk info panel. Lazy-load client-only karena three.js
@@ -61,18 +62,24 @@ const integrations: { name: string; live: boolean }[] = [
   { name: "PostgreSQL", live: false },
 ];
 
+// Hanya angka yang bisa diverifikasi dari kode. (Dulu: "95% insight relevan
+// berdasarkan feedback early access" dan "100% data tetap di browser" — tidak
+// ada datanya / tidak lagi akurat.)
 const stats = [
-  { value: 30, suffix: "s", label: "Dari upload ke dashboard", description: "Setup median user — tanpa coding, tanpa setup tools." },
-  { value: 95, suffix: "%", label: "Insight relevan & dapat ditindaklanjuti", description: "Berdasarkan feedback rata-rata pengguna early access." },
-  { value: 12, suffix: "+", label: "Jenis chart adaptive", description: "Auto-pilih kombinasi terbaik untuk dataset kamu." },
-  { value: 100, suffix: "%", label: "Data tetap di browser", description: "Engine lokal — privacy by design, bukan janji marketing." },
+  { value: 30, suffix: "s", label: "Dari upload ke dashboard", description: "Untuk file ≤ 5 MB — parsing & statistik jalan di browser, tanpa coding." },
+  { value: 156, suffix: "", label: "Test otomatis", description: "Rumus statistik (t, F, regresi, korelasi) dicocokkan dengan nilai acuan scipy." },
+  { value: 9, suffix: "", label: "Jenis chart", description: "Line, bar, doughnut, radar, polar, scatter, bubble, mixed, heatmap." },
+  { value: 0, suffix: " byte", label: "File diupload ke server", description: "Ke AI hanya ringkasan + beberapa baris sampel yang data pribadinya disamarkan." },
 ];
 
-const testimonials = [
-  { name: "Aria Putri", role: "Data Analyst, Tokopedia", quote: "Yang biasanya butuh 2 jam, sekarang 5 menit. Kesimpulan AI-nya jujur — dia kasih tahu kalau ada anomali yang aku lewat dan tetap minta konfirmasi konteks.", rating: 5 },
-  { name: "Reza Hakim", role: "Data Scientist, Gojek", quote: "Wizard cleaning-nya beda. Per-anomali aku bisa pilih, jadi data yang sebenarnya emas (lonjakan kampanye) nggak ikut kebersih.", rating: 5 },
-  { name: "Sintia Rahma", role: "Marketing Manager, UMKM", quote: "Saya bukan orang teknik tapi laporannya jadi keren banget. Penjelasannya pakai analogi sehari-hari — saya paham, klien juga paham.", rating: 5 },
-  { name: "Bayu Pratama", role: "Mahasiswa S2 Statistika", quote: "Kesimpulan AI-nya beneran punya sudut pandang, bukan ringkasan generik. Bantu banget buat narasi skripsi.", rating: 5 },
+// Contoh skenario penggunaan — BUKAN testimoni. Versi sebelumnya memuat
+// testimoni karangan dengan nama orang & jabatan di perusahaan nyata
+// (Tokopedia, Gojek) beserta rating bintang; itu menyesatkan konsumen.
+const scenarios = [
+  { role: "Analyst e-commerce", body: "Upload ekspor transaksi harian (format DD/MM/YYYY). Grafio menjumlah per hari, menguji apakah trennya signifikan, dan menandai transaksi ekstrem tanpa mengubah angkanya." },
+  { role: "Tim marketing UMKM", body: "Dapat narasi Bahasa Indonesia dengan analogi sehari-hari dan laporan PDF yang bisa langsung dikirim ke klien atau atasan." },
+  { role: "Mahasiswa statistika", body: "Lihat R², p-value, rentang prediksi 95%, ANOVA antar kelompok, dan koreksi uji berganda — bahan diskusi metodologi, bukan sekadar grafik." },
+  { role: "Peneliti data sosial", body: "Dataset berisi nama, NIK, atau nomor HP? Kolom itu disamarkan otomatis di browser sebelum sampel apa pun dikirim ke model AI." },
 ];
 
 export default function Landing() {
@@ -102,7 +109,7 @@ export default function Landing() {
 
         <div className="relative max-w-4xl mx-auto px-6 flex flex-col items-center text-center">
           {/* EYEBROW */}
-          <Reveal>
+          <HeroReveal>
             <span className="inline-flex items-center gap-2.5 text-[11px] uppercase tracking-[0.3em] text-cyan border border-cyan/30 bg-cyan/5 px-4 py-1.5 rounded-full backdrop-blur-sm font-mono">
               <span className="relative flex h-1.5 w-1.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan opacity-75"></span>
@@ -110,30 +117,30 @@ export default function Landing() {
               </span>
               v2.0 · AI Analytics Workspace
             </span>
-          </Reveal>
+          </HeroReveal>
 
           {/* CENTERPIECE — 3D interactive orbit star, drag-rotate + click label */}
-          <Reveal delay={0.12} className="relative w-full -my-2 md:-my-4">
+          <HeroReveal delay={0.12} className="relative w-full -my-2 md:-my-4">
             <OrbitStar size={480} baseSpeed={0.6} />
-          </Reveal>
+          </HeroReveal>
 
           {/* HEADLINE — 2 baris max, tight */}
-          <Reveal delay={0.22}>
+          <HeroReveal delay={0.22}>
             <h1 className="font-syne font-extrabold tracking-[-0.025em] leading-[1.02] text-4xl sm:text-5xl md:text-6xl lg:text-[4.25rem]">
               <span className="block whitespace-nowrap">See Beyond</span>
               <span className="block whitespace-nowrap text-gradient">The Numbers.</span>
             </h1>
-          </Reveal>
+          </HeroReveal>
 
           {/* SUBHEAD — pendek, 1-2 baris */}
-          <Reveal delay={0.3}>
+          <HeroReveal delay={0.3}>
             <p className="mt-4 text-base md:text-lg text-muted max-w-xl leading-relaxed">
               AI analytics workspace untuk analyst, scientist &amp; founder Indonesia.
             </p>
-          </Reveal>
+          </HeroReveal>
 
           {/* CTA */}
-          <Reveal delay={0.38}>
+          <HeroReveal delay={0.38}>
             <div className="mt-6 flex items-center gap-3 flex-wrap justify-center">
               <MagneticButton strength={0.22}>
                 <Link href="/dashboard">
@@ -149,16 +156,16 @@ export default function Landing() {
                 </Button>
               </Link>
             </div>
-          </Reveal>
+          </HeroReveal>
 
           {/* TRUST ROW — above the fold */}
-          <Reveal delay={0.46}>
+          <HeroReveal delay={0.46}>
             <div className="mt-5 flex items-center gap-6 text-xs text-muted flex-wrap justify-center">
               <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-mint" /> Tanpa kartu kredit</span>
               <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-mint" /> Gratis selamanya</span>
               <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-mint" /> Setup 30 detik</span>
             </div>
-          </Reveal>
+          </HeroReveal>
         </div>
       </section>
 
@@ -585,36 +592,23 @@ export default function Landing() {
         </Reveal>
       </section>
 
-      {/* ===== TESTIMONIALS ===== */}
+      {/* ===== SKENARIO PENGGUNAAN (bukan testimoni) ===== */}
       <section className="max-w-7xl mx-auto px-6 py-24">
         <Reveal>
           <SectionHeader
-            eyebrow="Testimoni"
-            title="Apa Kata Mereka"
-            description="Ribuan analyst, scientist, dan founder sudah membuktikan."
+            eyebrow="Skenario"
+            title="Dipakai untuk Apa?"
+            description="Contoh alur kerja yang didukung Grafio hari ini — ilustrasi, bukan testimoni pengguna."
           />
         </Reveal>
         <Stagger className="grid md:grid-cols-2 lg:grid-cols-4 gap-5" gap={0.08}>
-          {testimonials.map((t, i) => (
+          {scenarios.map((t, i) => (
             <StaggerItem key={i}>
               <div className="group glass rounded-2xl p-6 hover-lift hover:border-cyan/40 transition-all duration-400 ease-glide shadow-soft flex flex-col h-full">
-                <div className="flex gap-0.5 mb-4">
-                  {Array.from({ length: t.rating }).map((_, j) => (
-                    <Star key={j} className="w-3.5 h-3.5 fill-cyan text-cyan" />
-                  ))}
-                </div>
-                <p className="text-sm text-white/90 mb-5 leading-relaxed flex-1 italic">
-                  &ldquo;{t.quote}&rdquo;
-                </p>
-                <div className="flex items-center gap-3 pt-4 border-t border-borderColor">
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-cyan via-cyanSoft to-violet flex items-center justify-center text-bgDeep font-bold text-sm shadow-soft">
-                    {t.name[0]}
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-white">{t.name}</p>
-                    <p className="text-[10px] text-muted">{t.role}</p>
-                  </div>
-                </div>
+                <span className="self-start text-[10px] uppercase tracking-widest text-cyan border border-cyan/30 bg-cyan/5 px-2.5 py-1 rounded-full mb-4">
+                  {t.role}
+                </span>
+                <p className="text-sm text-white/90 leading-relaxed flex-1">{t.body}</p>
               </div>
             </StaggerItem>
           ))}
