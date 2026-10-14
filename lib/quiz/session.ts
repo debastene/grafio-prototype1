@@ -9,7 +9,7 @@ import { getServerSupabase } from "@/lib/db/supabase";
 import { QuizError } from "./server";
 
 export async function requireQuizUser(): Promise<{ sb: SupabaseClient; userId: string } | NextResponse> {
-  const sb = getServerSupabase(cookies());
+  const sb = getServerSupabase(await cookies()); // Next 15: cookies() async
   if (!sb) {
     return NextResponse.json({ error: "Database belum di-setup", code: "db_unconfigured" }, { status: 503 });
   }

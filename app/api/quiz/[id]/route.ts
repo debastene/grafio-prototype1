@@ -12,14 +12,16 @@ export const dynamic = "force-dynamic";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
-  if (!UUID_RE.test(params.id)) {
+export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  // Next 15: params berbentuk Promise di route handler.
+  const { id } = await params;
+  if (!UUID_RE.test(id)) {
     return NextResponse.json({ error: "Quiz tidak ditemukan.", code: "quiz_not_found" }, { status: 404 });
   }
   const auth = await requireQuizUser();
   if (auth instanceof NextResponse) return auth;
   try {
-    return NextResponse.json(await getPublicQuiz(auth.sb, params.id, auth.userId));
+    return NextResponse.json(await getPublicQuiz(auth.sb, id, auth.userId));
   } catch (e) {
     return quizErrorResponse(e);
   }
