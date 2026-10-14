@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "dataSample wajib diisi (teks CSV/JSON)" }, { status: 400 });
   }
 
-  const limited = consumeAiQuota(caller, "analyze");
+  const limited = await consumeAiQuota(caller, "analyze");
   if (limited) return limited;
 
   const fileName = str(body.fileName, 200) ?? "data.unknown";

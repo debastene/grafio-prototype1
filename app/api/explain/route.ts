@@ -185,7 +185,7 @@ export async function POST(req: NextRequest) {
   }
 
   // 4. Kuota (hanya untuk request valid)
-  const limited = consumeAiQuota(caller, "explain");
+  const limited = await consumeAiQuota(caller, "explain");
   if (limited) return limited;
 
   try {

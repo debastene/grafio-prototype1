@@ -133,7 +133,7 @@ export async function POST(req: NextRequest) {
   }
 
   // 4. Kuota (hanya untuk request valid)
-  const limited = consumeAiQuota(caller, "chat");
+  const limited = await consumeAiQuota(caller, "chat");
   if (limited) return limited;
 
   const system = dataset

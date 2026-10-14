@@ -9,12 +9,9 @@
  *   4. consumeAiQuota() — kuota baru dipotong untuk request yang valid,
  *      jadi body salah format tidak menghabiskan jatah user.
  *
- * KETERBATASAN rate limiter in-memory di Vercel serverless: counter hidup
- * per-instance (warm lambda), bukan global. Ini FIRST LINE OF DEFENSE yang
- * menghentikan abuse kasual & loop tak sengaja — bukan pengganti rate limit
- * terdistribusi. Kalau traffic naik, ganti store ini dengan Upstash Redis
- * (@upstash/ratelimit) tanpa mengubah pemanggil: cukup tukar implementasi
- * `take()` di bawah.
+ * Penyimpanan counter: lihat lib/server/rateLimit.ts — Upstash Redis (global,
+ * kalau env UPSTASH_REDIS_REST_URL/TOKEN diisi) dengan fallback in-memory
+ * per instance.
  *
  * Limit free-tier disamakan dengan janji di halaman pricing
  * ("3-5 prompt analisis per 6 jam") — lihat AI_LIMITS.
@@ -23,6 +20,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { getServerSupabase, SUPABASE_CONFIGURED } from "@/lib/db/supabase";
+import { take } from "./rateLimit";
 
 // ============================================================
 // LIMITS PER BUCKET (free tier)
@@ -52,53 +50,6 @@ export const MAX_BODY_BYTES = {
 } as const;
 
 // ============================================================
-// IN-MEMORY SLIDING WINDOW
-// ============================================================
-
-/** key → timestamps (ms) request yang masih di dalam window. */
-const hits = new Map<string, number[]>();
-
-/** Cegah Map tumbuh tak terbatas di instance yang hidup lama. */
-const MAX_KEYS = 5_000;
-
-type TakeResult =
-  | { ok: true; remaining: number }
-  | { ok: false; retryAfterSec: number };
-
-function take(key: string, limit: number, windowMs: number): TakeResult {
-  const now = Date.now();
-  const windowStart = now - windowMs;
-
-  let stamps = hits.get(key);
-  if (!stamps) {
-    // Evict paling kasar tapi cukup: kalau penuh, buang semua entry basi dulu.
-    if (hits.size >= MAX_KEYS) {
-      const keysToDelete: string[] = [];
-      hits.forEach((v, k) => {
-        if (v.length === 0 || v[v.length - 1] < windowStart) keysToDelete.push(k);
-      });
-      for (const k of keysToDelete) hits.delete(k);
-      if (hits.size >= MAX_KEYS) hits.clear(); // fail-open, jangan sampai OOM
-    }
-    stamps = [];
-    hits.set(key, stamps);
-  }
-
-  // Drop timestamp di luar window (array selalu terurut naik).
-  let firstValid = 0;
-  while (firstValid < stamps.length && stamps[firstValid] < windowStart) firstValid++;
-  if (firstValid > 0) stamps.splice(0, firstValid);
-
-  if (stamps.length >= limit) {
-    const retryAfterMs = stamps[0] + windowMs - now;
-    return { ok: false, retryAfterSec: Math.max(1, Math.ceil(retryAfterMs / 1000)) };
-  }
-
-  stamps.push(now);
-  return { ok: true, remaining: limit - stamps.length };
-}
-
-// ============================================================
 // GUARD
 // ============================================================
 
@@ -123,7 +74,7 @@ export type AiCaller = { key: string };
  */
 export async function authorizeAi(req: NextRequest): Promise<AiCaller | NextResponse> {
   if (SUPABASE_CONFIGURED) {
-    const sb = getServerSupabase(cookies());
+    const sb = getServerSupabase(await cookies()); // Next 15: cookies() async
     const { data } = sb
       ? await sb.auth.getUser()
       : { data: { user: null } };
@@ -179,9 +130,9 @@ export async function readJsonBody(
 /**
  * Langkah 4 — potong kuota bucket. null kalau masih ada jatah, 429 kalau habis.
  */
-export function consumeAiQuota(caller: AiCaller, bucket: AiBucket): NextResponse | null {
+export async function consumeAiQuota(caller: AiCaller, bucket: AiBucket): Promise<NextResponse | null> {
   const { limit, windowMs } = AI_LIMITS[bucket];
-  const res = take(`${bucket}:${caller.key}`, limit, windowMs);
+  const res = await take(`${bucket}:${caller.key}`, limit, windowMs);
   if (res.ok) return null;
   return NextResponse.json(
     {
