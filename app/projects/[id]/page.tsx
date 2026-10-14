@@ -15,6 +15,7 @@ import BarChart from "@/components/ui/charts/BarChart";
 import DoughnutChart from "@/components/ui/charts/DoughnutChart";
 import ScatterChart from "@/components/ui/charts/ScatterChart";
 import LineAreaChart from "@/components/ui/charts/LineAreaChart";
+import MultivariatePanel from "@/components/ui/MultivariatePanel";
 import { getProject, deleteProject } from "@/lib/db/projects";
 import type { ProjectRow } from "@/lib/db/types";
 import type { EngineResult } from "@/lib/engine";
@@ -405,6 +406,13 @@ export default function ProjectDetail() {
                 >
                   <CorrHeatmap matrix={result.analysis.correlationMatrix} />
                 </ChartFrame>
+              </div>
+            )}
+
+            {/* ANALISIS MULTIVARIAT (snapshot lama tidak punya field ini) */}
+            {result.multivariate && (
+              <div className="mb-6">
+                <MultivariatePanel mv={result.multivariate} profiles={result.profile} fileName={result.fileName} />
               </div>
             )}
 

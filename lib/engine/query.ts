@@ -289,6 +289,52 @@ function tryCorrelation(q: string, profiles: ColProfile[]): QueryAnswer | null {
 }
 
 /**
+ * Klaster / PCA query — dijawab dari hasil computeMultivariate (tanpa AI).
+ */
+function tryMultivariate(q: string, result: EngineResult): QueryAnswer | null {
+  const lower = q.toLowerCase();
+  const wantsCluster = /\b(klaster|cluster|kluster|segmen|segmentasi|kelompok|k-means|kmeans)\b/.test(lower);
+  const wantsPca = /\b(pca|komponen utama|principal|dimensi|reduksi dimensi)\b/.test(lower);
+  if (!wantsCluster && !wantsPca) return null;
+  const mv = result.multivariate;
+  if (!mv) {
+    return {
+      text: "Analisis multivariat tidak dihitung untuk dataset ini (butuh minimal 2-3 kolom numerik dan cukup baris lengkap).",
+      confidence: 0.8,
+    };
+  }
+  if (wantsCluster) {
+    const c = mv.clusters;
+    if (!c) return { text: mv.notes.join(" ") || "Klaster tidak dihitung untuk dataset ini.", confidence: 0.8 };
+    const tiny = new Set(c.tinyClusters ?? []);
+    const groups = c.profiles
+      .map((g) => {
+        const traits = [...g.high.map((h) => `${h.column} tinggi`), ...g.low.map((l) => `${l.column} rendah`)];
+        return `Kelompok ${g.cluster}: ${g.size} baris (${Math.round(g.share * 100)}%)${tiny.has(g.cluster) ? " — kemungkinan outlier" : ""}${traits.length ? ` — ${traits.join(", ")}` : ""}`;
+      })
+      .join(". ");
+    return {
+      text: `k-means memilih ${c.k} kelompok (silhouette ${c.silhouette.toFixed(2)}, struktur ${c.structure}). ${groups}.${c.structure === "tidak ada" ? " Silhouette < 0,25 berarti tidak ada pengelompokan alami yang jelas." : ""}`,
+      matchedColumns: mv.columns,
+      confidence: 0.9,
+    };
+  }
+  const p = mv.pca;
+  if (!p) return { text: mv.notes.join(" ") || "PCA tidak dihitung untuk dataset ini.", confidence: 0.8 };
+  const top = p.columns
+    .map((col, i) => ({ col, l: p.loadings[i][0] }))
+    .sort((a, b) => Math.abs(b.l) - Math.abs(a.l))
+    .slice(0, 3)
+    .map((x) => `${x.col} (${x.l.toFixed(2)})`)
+    .join(", ");
+  return {
+    text: `PCA pada ${p.columns.length} kolom: PC1 menjelaskan ${(p.explained[0] * 100).toFixed(1)}% variasi (loading terbesar: ${top}), PC1+PC2 ${(p.cumulative[1] * 100).toFixed(1)}%. ${p.kaiserComponents} komponen bernilai eigen > 1. Uji Bartlett ${formatP(p.bartlett.pValue)}, KMO ${p.kmo === null ? "–" : p.kmo.toFixed(2)}.`,
+    matchedColumns: p.columns,
+    confidence: 0.9,
+  };
+}
+
+/**
  * Trend query.
  */
 function tryTrend(q: string, result: EngineResult): QueryAnswer | null {
@@ -481,6 +527,7 @@ export function answerQuery(question: string, result: EngineResult): QueryAnswer
     () => tryFilter(q, result.profile, result.tableSnapshot.rows),
     () => tryArgmax(q, result.profile, result.tableSnapshot.rows),
     () => tryRanking(q, result.profile, result.tableSnapshot.rows),
+    () => tryMultivariate(q, result),
     () => tryCorrelation(q, result.profile),
     () => tryTrend(q, result),
     () => tryAnomaly(q, result),
@@ -540,6 +587,7 @@ export function suggestQuestions(result: EngineResult): string[] {
   if (topCorr) out.push(`Korelasi ${topCorr.a} dan ${topCorr.b}`);
   if (topTrend) out.push(`Tren ${topTrend.column}`);
   if (topAnom) out.push(`Anomali di ${topAnom.column}`);
+  if (result.multivariate?.clusters) out.push("Ada berapa kelompok (klaster) di data ini?");
   if (numericTargets[1]) out.push(`Total ${numericTargets[1].name}`);
   out.push("Ringkas data ini");
 

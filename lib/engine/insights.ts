@@ -10,6 +10,7 @@ import { Analysis, TrendResult, aggregationFor, resolveTimeX } from "./analyze";
 import { ColProfile } from "./profile";
 import { aggregateSeries, compactNumber, formatByType, formatP, systematicSample } from "./stats";
 import { Domain } from "./domain";
+import { MultivariateResult, kmoLabel } from "./multivariate";
 
 export type Insight = {
   type: "trend" | "anomaly" | "target" | "idea";
@@ -57,7 +58,12 @@ function trendInsight(t: TrendResult, profile: ColProfile, hasFocus: boolean): I
   };
 }
 
-export function generateInsights(analysis: Analysis, profiles: ColProfile[], domain?: Domain): Insight[] {
+export function generateInsights(
+  analysis: Analysis,
+  profiles: ColProfile[],
+  domain?: Domain,
+  multivariate?: MultivariateResult | null,
+): Insight[] {
   const out: Insight[] = [];
   const intent = analysis.intentApplied;
   const focusSet = new Set(intent?.focusColumns ?? []);
@@ -161,6 +167,9 @@ export function generateInsights(analysis: Analysis, profiles: ColProfile[], dom
     }
   }
 
+  // ===== Multivariat: klaster (hanya kalau strukturnya minimal "lemah")
+  out.push(...multivariateInsights(multivariate, profiles));
+
   // ===== Skewness / data quality (fillers)
   if (out.length < 5) {
     const skewed = profiles.find(
@@ -196,6 +205,63 @@ export function generateInsights(analysis: Analysis, profiles: ColProfile[], dom
   }
 
   return out.slice(0, 6);
+}
+
+/**
+ * Insight dari PCA & k-means. Ditulis hanya kalau hasil ujinya mendukung:
+ * klaster dengan silhouette > 0,25; PCA bila Bartlett signifikan & KMO ≥ 0,6.
+ */
+export function multivariateInsights(mv: MultivariateResult | null | undefined, profiles: ColProfile[]): Insight[] {
+  const out: Insight[] = [];
+  if (!mv) return out;
+  const fmtCol = (col: string, v: number) => {
+    const p = profiles.find((x) => x.name === col);
+    return p ? formatByType(v, p.type, p.name) : compactNumber(v);
+  };
+
+  const c = mv.clusters;
+  const tiny = new Set(c?.tinyClusters ?? []);
+  const realSegments = c ? c.profiles.filter((g) => !tiny.has(g.cluster)) : [];
+  if (c && c.structure !== "tidak ada" && realSegments.length < 2) {
+    // Silhouette tinggi tapi yang terpisah hanya segelintir baris ekstrem.
+    const outl = c.profiles.filter((g) => tiny.has(g.cluster));
+    out.push({
+      type: "anomaly",
+      title: "Tidak ada segmen yang bermakna",
+      body: `k-means hanya memisahkan ${outl.map((g) => `${g.size} baris ekstrem (${Math.round(g.share * 100)}%)`).join(" dan ")} dari sisanya — itu outlier, bukan segmen pelanggan/wilayah. Silhouette ${c.silhouette.toFixed(2)} tinggi justru karena baris-baris itu sangat jauh.`,
+    });
+  } else if (c && c.structure !== "tidak ada") {
+    const parts = c.profiles.slice(0, 3).map((g) => {
+      const traits = [
+        ...g.high.slice(0, 2).map((h) => `${h.column} tinggi (${fmtCol(h.column, g.centroid[h.column])})`),
+        ...g.low.slice(0, 1).map((l) => `${l.column} rendah (${fmtCol(l.column, g.centroid[l.column])})`),
+      ];
+      const label = tiny.has(g.cluster) ? " — kemungkinan outlier" : "";
+      return `Kelompok ${g.cluster} (${Math.round(g.share * 100)}%${label}): ${traits.length ? traits.join(", ") : "mendekati rata-rata"}`;
+    });
+    out.push({
+      type: "idea",
+      title: `Data terbagi jadi ${c.k} kelompok`,
+      body: `${parts.join("; ")}. Pemisahan ${c.structure} (silhouette ${c.silhouette.toFixed(2)}, k-means pada ${mv.columns.length} kolom terstandardisasi).`,
+    });
+  }
+
+  const p = mv.pca;
+  if (p && p.bartlett.pValue < 0.05 && (p.kmo ?? 0) >= 0.6) {
+    const top = p.columns
+      .map((col, i) => ({ col, l: p.loadings[i][0] }))
+      .filter((x) => Math.abs(x.l) >= 0.5)
+      .sort((a, b) => Math.abs(b.l) - Math.abs(a.l))
+      .slice(0, 4)
+      .map((x) => `${x.col} (${x.l > 0 ? "+" : "−"}${Math.abs(x.l).toFixed(2)})`);
+    const two = p.cumulative[Math.min(1, p.cumulative.length - 1)];
+    out.push({
+      type: "target",
+      title: `${p.kaiserComponents || 1} dimensi utama merangkum ${p.columns.length} kolom`,
+      body: `Komponen pertama menjelaskan ${(p.explained[0] * 100).toFixed(0)}% variasi${top.length ? `, didominasi ${top.join(", ")}` : ""}; dua komponen pertama ${(two * 100).toFixed(0)}%. Data layak untuk PCA (Bartlett ${formatP(p.bartlett.pValue)}, KMO ${p.kmo!.toFixed(2)} — ${kmoLabel(p.kmo!)}).`,
+    });
+  }
+  return out;
 }
 
 export function generateKpis(analysis: Analysis, profiles: ColProfile[]): Kpi[] {

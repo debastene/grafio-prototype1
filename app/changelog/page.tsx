@@ -11,6 +11,17 @@ export const metadata = {
 
 const releases = [
   {
+    version: "v2.3.0",
+    date: "14 Oktober 2026",
+    headline: "Analisis Multivariat: PCA & Klaster",
+    changes: [
+      { type: "feature", text: "PCA dari matriks korelasi: scree plot, tabel loading, proyeksi PC1 × PC2 — didahului uji kelayakan Bartlett & KMO." },
+      { type: "feature", text: "Klaster k-means++ (seed tetap, hasil deterministik) dengan k dipilih lewat silhouette; profil tiap kelompok ditulis dalam bahasa awam." },
+      { type: "improvement", text: "Kolom yang sangat miring (populasi, omzet) di-log sebelum analisis; kelompok < 5% ditandai sebagai kemungkinan outlier, bukan segmen." },
+      { type: "feature", text: "Chat engine menjawab pertanyaan \"ada berapa klaster?\" dan \"hasil PCA?\" langsung dari hasil hitungan." },
+    ],
+  },
+  {
     version: "v2.2.0",
     date: "14 Oktober 2026",
     headline: "Next.js 15 & Rate Limit Global",

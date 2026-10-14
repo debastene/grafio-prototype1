@@ -12,6 +12,7 @@ import { profileTable, ColProfile } from "./profile";
 import { analyzeTable, Analysis } from "./analyze";
 import { generateInsights, generateKpis, generateSummary, generateConclusion, Insight, Kpi } from "./insights";
 import { shapeCharts, ChartBundle } from "./charts";
+import { computeMultivariate, MultivariateResult } from "./multivariate";
 import { parseIntent, ParsedIntent } from "./intent";
 import { detectDomain, Domain } from "./domain";
 import { detectNumberFormat, applyNumberFormat, FormatDetection } from "./numberFormat";
@@ -202,6 +203,9 @@ export type EngineResult = {
    */
   chartInsights?: Record<string, string>;
 
+  /** PCA + klaster k-means (null kalau data tidak memenuhi syarat). Opsional: snapshot lama tidak punya. */
+  multivariate?: MultivariateResult | null;
+
   /** Label engine/model yang dipakai — untuk badge di dashboard & PDF. */
   _meta?: {
     model?: string;
@@ -257,7 +261,13 @@ export async function analyzeFile(
   // 6. INSIGHTS
   onProgress?.("Menyusun insight kontekstual…");
   await microTick();
-  const insights = generateInsights(analysis, profiles, inspection.domain);
+  // Multivariat: kolom metrik berurut prioritas (primary dulu), maks 8.
+  const mvCandidates = [
+    ...analysis.primaryNumericCols,
+    ...analysis.numericCols.filter((c) => !analysis.primaryNumericCols.includes(c)),
+  ];
+  const multivariate = computeMultivariate(profiles, mvCandidates);
+  const insights = generateInsights(analysis, profiles, inspection.domain, multivariate);
   const kpis = generateKpis(analysis, profiles);
   const summary = generateSummary(analysis, profiles, file.name, inspection.domain);
   const conclusion = generateConclusion(analysis, profiles, inspection.domain);
@@ -284,6 +294,7 @@ export async function analyzeFile(
     profile: profiles,
     analysis,
     charts,
+    multivariate,
     promptApplied: prompt,
     intent,
     durationMs,

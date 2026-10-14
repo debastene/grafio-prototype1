@@ -21,6 +21,7 @@ import Heatmap from "@/components/ui/charts/Heatmap";
 import ChartSwitcher from "@/components/ui/charts/ChartSwitcher";
 import LineAreaChart from "@/components/ui/charts/LineAreaChart";
 import ChartFrame from "@/components/ui/charts/ChartFrame";
+import MultivariatePanel from "@/components/ui/MultivariatePanel";
 import {
   Share2, RefreshCw, Sparkles,
   FileText, Copy, Check, Cpu, Database, AlertTriangle, Loader2,
@@ -635,6 +636,11 @@ function DashboardContent() {
                   })}
                 </div>
               </Card>
+            )}
+
+            {/* ANALISIS MULTIVARIAT — PCA & klaster k-means */}
+            {mode === "ai" && aiResult?.multivariate && (
+              <MultivariatePanel mv={aiResult.multivariate} profiles={aiResult.profile} fileName={aiResult.fileName} />
             )}
 
             {/* CHART GRID — semua chart pakai ChartFrame (screenshot-ready, named) */}

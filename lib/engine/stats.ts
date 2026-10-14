@@ -198,6 +198,53 @@ export function tQuantile(p: number, df: number): number {
   return (lo + hi) / 2;
 }
 
+/**
+ * Regularized upper incomplete gamma Q(a, x) = Γ(a, x) / Γ(a).
+ * Deret untuk x < a+1, continued fraction (Lentz) selain itu — NR §6.2.
+ */
+export function gammaQ(a: number, x: number): number {
+  if (x <= 0) return 1;
+  if (!Number.isFinite(x)) return 0;
+  const EPS = 3e-16;
+  const FPMIN = 1e-300;
+  const gln = logGamma(a);
+  if (x < a + 1) {
+    let ap = a;
+    let sum = 1 / a;
+    let del = sum;
+    for (let n = 1; n <= 1000; n++) {
+      ap += 1;
+      del *= x / ap;
+      sum += del;
+      if (Math.abs(del) < Math.abs(sum) * EPS) break;
+    }
+    return Math.max(0, 1 - sum * Math.exp(-x + a * Math.log(x) - gln));
+  }
+  let b = x + 1 - a;
+  let c = 1 / FPMIN;
+  let d = 1 / b;
+  let h = d;
+  for (let i = 1; i <= 1000; i++) {
+    const an = -i * (i - a);
+    b += 2;
+    d = an * d + b;
+    if (Math.abs(d) < FPMIN) d = FPMIN;
+    c = b + an / c;
+    if (Math.abs(c) < FPMIN) c = FPMIN;
+    d = 1 / d;
+    const del = d * c;
+    h *= del;
+    if (Math.abs(del - 1) < EPS) break;
+  }
+  return Math.min(1, Math.exp(-x + a * Math.log(x) - gln) * h);
+}
+
+/** P(χ² > x) dengan df derajat bebas. */
+export function chiSquareSurvival(x: number, df: number): number {
+  if (df <= 0 || Number.isNaN(x)) return 1;
+  return gammaQ(df / 2, x / 2);
+}
+
 /** P(F > f) untuk distribusi F(d1, d2). */
 export function fSurvival(f: number, d1: number, d2: number): number {
   if (d1 <= 0 || d2 <= 0 || Number.isNaN(f)) return 1;
@@ -533,6 +580,7 @@ export function systematicSample<T>(arr: T[], n: number): T[] {
  * Compact a number for display: 1234567 -> "1.2M".
  */
 export function compactNumber(n: number): string {
+  if (n === 0) return "0";
   const abs = Math.abs(n);
   if (abs >= 1e12) return `${(n / 1e12).toFixed(1)}T`;
   if (abs >= 1e9) return `${(n / 1e9).toFixed(1)}B`;
