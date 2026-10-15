@@ -339,6 +339,44 @@ function tryMultivariate(q: string, result: EngineResult): QueryAnswer | null {
  * Trend query.
  */
 /**
+ * Klasifikasi: "faktor penentu churn?", "akurasi model?", "pohon keputusan", "naive bayes".
+ */
+function tryClassify(q: string, result: EngineResult): QueryAnswer | null {
+  const lower = q.toLowerCase();
+  const r = result.classification?.result;
+  const explicit = /\b(klasifikasi|classification|classify|pohon keputusan|decision tree|naive bayes|confusion matrix|akurasi model)\b/.test(lower);
+  const mentionsTarget = !!r && lower.includes(r.target.toLowerCase());
+  const asksDriver = /\b(penentu|menentukan|faktor|pengaruh|penyebab|memprediksi|prediksi)\b/.test(lower) && mentionsTarget;
+  if (!explicit && !asksDriver) return null;
+  if (!r) {
+    const cl = result.classification;
+    return {
+      text: cl?.candidates.length
+        ? `Klasifikasi belum dihitung (${cl.reason ?? "target belum dipilih"}). Kolom yang bisa jadi target: ${cl.candidates.join(", ")} — sebutkan salah satunya di arahan analisis, mis. "klasifikasi ${cl.candidates[0]}".`
+        : "Klasifikasi butuh kolom target kategorikal (2–10 kelas), mis. status, churn, lulus. Dataset ini tidak punya kolom seperti itu.",
+      confidence: 0.9,
+    };
+  }
+  const pct = (v: number) => `${(v * 100).toFixed(1)}%`;
+  const best = r.best === "tree" ? "pohon keputusan" : r.best === "naiveBayes" ? "Naive Bayes" : "baseline (tebak kelas terbanyak)";
+  const mc = r.mcnemar;
+  const rules = r.tree.rules.filter((x) => x.conditions.length).slice(0, 3);
+  return {
+    text: `Target ${r.target} (${r.classes.map((c) => `${c.label} ${c.count}`).join(", ")}). Di ${r.nTest} baris uji: pohon keputusan (kedalaman ${r.tree.depth}) balanced accuracy ${pct(r.tree.balancedAccuracy)}, Naive Bayes ${pct(r.naiveBayes.balancedAccuracy)}, baseline ${pct(r.baseline.balancedAccuracy)} → terbaik: ${best}.${
+      mc ? ` Uji McNemar pohon vs Naive Bayes p = ${mc.pValue.toFixed(3)} (${mc.pValue < 0.05 ? "berbeda signifikan" : "tidak berbeda signifikan"}).` : ""
+    }${r.tree.importance.length ? ` Faktor paling berpengaruh: ${r.tree.importance.slice(0, 3).map((x) => `${x.feature} (${pct(x.value)})`).join(", ")}.` : ""}`,
+    data: rules.length
+      ? {
+          kind: "list",
+          items: rules.map((x) => `Jika ${x.conditions.join(" dan ")} → ${r.target} = ${x.prediction} (${pct(x.confidence)}, ${x.n} baris)`),
+        }
+      : undefined,
+    matchedColumns: [r.target, ...r.tree.importance.slice(0, 3).map((x) => x.feature)],
+    confidence: 0.96,
+  };
+}
+
+/**
  * Ramalan ARIMA: "ramalan penjualan", "forecast 3 bulan", "model arima apa?"
  */
 function tryForecast(q: string, result: EngineResult): QueryAnswer | null {
@@ -576,6 +614,7 @@ export function answerQuery(question: string, result: EngineResult): QueryAnswer
     () => tryRanking(q, result.profile, result.tableSnapshot.rows),
     () => tryMultivariate(q, result),
     () => tryCorrelation(q, result.profile),
+    () => tryClassify(q, result),
     () => tryForecast(q, result),
     () => tryTrend(q, result),
     () => tryAnomaly(q, result),

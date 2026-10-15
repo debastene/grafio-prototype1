@@ -12,6 +12,7 @@ import { aggregateSeries, compactNumber, formatByType, formatP, systematicSample
 import { Domain } from "./domain";
 import { MultivariateResult, kmoLabel } from "./multivariate";
 import { ForecastBundle, mapeLabel, methodLabel } from "./forecast";
+import { ClassificationBundle } from "./classify";
 
 export type Insight = {
   type: "trend" | "anomaly" | "target" | "idea";
@@ -65,6 +66,7 @@ export function generateInsights(
   domain?: Domain,
   multivariate?: MultivariateResult | null,
   forecasts?: ForecastBundle | null,
+  classification?: ClassificationBundle | null,
 ): Insight[] {
   const out: Insight[] = [];
   const intent = analysis.intentApplied;
@@ -114,6 +116,10 @@ export function generateInsights(
   // ===== Ramalan ARIMA (satu insight, kolom pertama yang berhasil dimodelkan)
   const fcInsight = forecastInsight(forecasts, profiles);
   if (fcInsight) out.push(fcInsight);
+
+  // ===== Klasifikasi: faktor penentu target
+  const clInsight = classificationInsight(classification);
+  if (clInsight) out.push(clInsight);
 
   // ===== Correlation insights (sudah lolos uji + koreksi BH di analyze)
   if (analysis.correlations.length > 0) {
@@ -234,6 +240,32 @@ export function forecastInsight(fc: ForecastBundle | null | undefined, profiles:
     type: "trend",
     title: `Ramalan ${f.column}: ${v(f.future.mean[last])} dalam ${h} ${f.granularity}`,
     body: `${f.model.label} memperkirakan ${f.column} (${f.aggregation === "sum" ? "total" : "rata-rata"} per ${f.granularity}) di ${f.future.labels[last]} sekitar ${v(f.future.mean[last])}, rentang 95%: ${v(f.future.lower[last])} – ${v(f.future.upper[last])}.${evalText}`,
+  };
+}
+
+/**
+ * Insight klasifikasi: faktor penentu target menurut pohon keputusan, selalu
+ * dibandingkan dengan baseline kelas mayoritas.
+ */
+export function classificationInsight(cl: ClassificationBundle | null | undefined): Insight | null {
+  const r = cl?.result;
+  if (!r) return null;
+  const pct = (v: number) => `${(v * 100).toFixed(0)}%`;
+  if (r.best === "baseline") {
+    return {
+      type: "idea",
+      title: `${r.target} belum bisa diprediksi dari data ini`,
+      body: `Pohon keputusan & Naive Bayes tidak lebih baik dari menebak kelas terbanyak (${r.baseline.majority}, balanced accuracy ${pct(r.baseline.balancedAccuracy)}). Kolom yang ada belum menjelaskan ${r.target} — perlu fitur lain.`,
+    };
+  }
+  const m = r.best === "tree" ? r.tree : r.naiveBayes;
+  const name = r.best === "tree" ? `Pohon keputusan (kedalaman ${r.tree.depth})` : "Naive Bayes";
+  const top = r.tree.importance.slice(0, 3).map((x) => `${x.feature} (${pct(x.value)})`);
+  const rule = r.tree.rules.find((x) => x.conditions.length && x.prediction !== r.baseline.majority) ?? r.tree.rules[0];
+  return {
+    type: "target",
+    title: `Faktor penentu ${r.target}: ${r.tree.importance.slice(0, 2).map((x) => x.feature).join(" & ") || "—"}`,
+    body: `${name} memprediksi ${r.target} dengan balanced accuracy ${pct(m.balancedAccuracy)} di data uji (baseline ${pct(r.baseline.balancedAccuracy)}).${top.length ? ` Kolom paling berpengaruh: ${top.join(", ")}.` : ""}${rule && rule.conditions.length ? ` Pola terkuat: jika ${rule.conditions.join(" dan ")}, maka ${r.target} = ${rule.prediction} (${pct(rule.confidence)} dari ${rule.n} baris latih).` : ""}`,
   };
 }
 

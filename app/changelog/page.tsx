@@ -11,6 +11,17 @@ export const metadata = {
 
 const releases = [
   {
+    version: "v2.7.0",
+    date: "15 Oktober 2026",
+    headline: "Klasifikasi: Pohon Keputusan & Naive Bayes",
+    changes: [
+      { type: "feature", text: "Klasifikasi otomatis untuk kolom target kategorikal (mis. churn, status, lulus): pohon keputusan (CART, Gini) dan Naive Bayes, dibandingkan dengan baseline kelas mayoritas." },
+      { type: "feature", text: "Hasil yang bisa dijelaskan: aturan JIKA–MAKA dari pohon, kolom paling berpengaruh, confusion matrix, precision/recall/F1 per kelas, balanced accuracy, dan AUC." },
+      { type: "improvement", text: "Evaluasi jujur: data dibagi stratified 70/30, kedalaman pohon dipilih dengan 5-fold cross-validation + aturan 1-SE, uji McNemar antar model, plus peringatan kelas tidak seimbang & kebocoran data." },
+      { type: "feature", text: "Target bisa diganti langsung di dashboard (dihitung ulang di browser); bab Klasifikasi di laporan PDF; chat menjawab \"apa faktor penentu churn?\"." },
+    ],
+  },
+  {
     version: "v2.6.0",
     date: "15 Oktober 2026",
     headline: "SARIMA untuk Data Musiman",

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { analyzeFile } from "@/lib/engine";
 import { generateReport } from "../pdf";
 import { mulberry32 } from "@/lib/engine/multivariate";
+import { churnCsv } from "@/lib/engine/__tests__/fixtures/churn";
 
 /** 3 segmen pelanggan: hemat (sering, kecil), premium (jarang, besar), baru. */
 function customerCsv(): string {
@@ -96,6 +97,19 @@ describe("generateReport", () => {
     expect(raw).toContain("SARIMA");
     expect(raw).toMatch(/B\^12/); // faktor musiman di persamaan ASCII
     expect(raw).toContain("naif musiman");
+  });
+
+  it("data churn → bab Klasifikasi (model, confusion matrix, aturan)", async () => {
+    const r = await analyzeFile(new File([churnCsv()], "pelanggan-churn.csv"), "");
+    const blob = await generateReport(r);
+    if (process.env.GRAFIO_PDF_OUT) {
+      writeFileSync(process.env.GRAFIO_PDF_OUT.replace(/\.pdf$/, "-klasifikasi.pdf"), Buffer.from(await blob.arrayBuffer()));
+    }
+    const raw = await pdfText(blob);
+    expect(raw).toContain("Klasifikasi");
+    expect(raw).toContain("Naive Bayes");
+    expect(raw).toContain("Aktual / Prediksi");
+    expect(raw).toMatch(/JIKA .* MAKA churn/);
   });
 
   it("proyek lama tanpa hasil multivariat tetap bisa diekspor", async () => {

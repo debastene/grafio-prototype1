@@ -23,6 +23,7 @@ import LineAreaChart from "@/components/ui/charts/LineAreaChart";
 import ChartFrame from "@/components/ui/charts/ChartFrame";
 import MultivariatePanel from "@/components/ui/MultivariatePanel";
 import ForecastPanel from "@/components/ui/ForecastPanel";
+import ClassificationPanel from "@/components/ui/ClassificationPanel";
 import {
   Share2, RefreshCw, Sparkles,
   FileText, Copy, Check, Cpu, Database, AlertTriangle, Loader2,
@@ -642,6 +643,21 @@ function DashboardContent() {
             {/* PERAMALAN ARIMA — hanya kalau ada sumbu waktu */}
             {mode === "ai" && aiResult?.forecasts && (
               <ForecastPanel fc={aiResult.forecasts} profiles={aiResult.profile} fileName={aiResult.fileName} />
+            )}
+
+            {/* KLASIFIKASI — pohon keputusan & Naive Bayes (target bisa diganti) */}
+            {mode === "ai" && aiResult?.classification && (
+              <ClassificationPanel
+                cl={aiResult.classification}
+                profiles={aiResult.profile}
+                // Ganti target hanya kalau baris masih lengkap — snapshot yang dipulihkan
+                // dari sessionStorage dipangkas ke 200 baris (tidak representatif).
+                rows={
+                  aiResult.tableSnapshot.rows.length >= Math.min(aiResult.rowCount, 10000)
+                    ? aiResult.tableSnapshot.rows
+                    : undefined
+                }
+              />
             )}
 
             {/* ANALISIS MULTIVARIAT — PCA & klaster k-means */}

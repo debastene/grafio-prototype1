@@ -17,6 +17,7 @@ import ScatterChart from "@/components/ui/charts/ScatterChart";
 import LineAreaChart from "@/components/ui/charts/LineAreaChart";
 import MultivariatePanel from "@/components/ui/MultivariatePanel";
 import ForecastPanel from "@/components/ui/ForecastPanel";
+import ClassificationPanel from "@/components/ui/ClassificationPanel";
 import { getProject, deleteProject } from "@/lib/db/projects";
 import type { ProjectRow } from "@/lib/db/types";
 import type { EngineResult } from "@/lib/engine";
@@ -414,6 +415,13 @@ export default function ProjectDetail() {
             {result.forecasts && (
               <div className="mb-6">
                 <ForecastPanel fc={result.forecasts} profiles={result.profile} fileName={result.fileName} />
+              </div>
+            )}
+
+            {/* KLASIFIKASI (snapshot lama tidak punya field ini; target tidak bisa diganti dari snapshot) */}
+            {result.classification && (
+              <div className="mb-6">
+                <ClassificationPanel cl={result.classification} profiles={result.profile} />
               </div>
             )}
 

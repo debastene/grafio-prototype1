@@ -14,6 +14,7 @@ import { generateInsights, generateKpis, generateSummary, generateConclusion, In
 import { shapeCharts, ChartBundle } from "./charts";
 import { computeMultivariate, MultivariateResult } from "./multivariate";
 import { computeForecasts, ForecastBundle } from "./forecast";
+import { ClassificationBundle, computeClassification } from "./classify";
 import { parseIntent, ParsedIntent } from "./intent";
 import { detectDomain, Domain } from "./domain";
 import { detectNumberFormat, applyNumberFormat, FormatDetection } from "./numberFormat";
@@ -210,6 +211,9 @@ export type EngineResult = {
   /** Peramalan ARIMA per metrik utama (null = tanpa sumbu waktu). Opsional: snapshot lama tidak punya. */
   forecasts?: ForecastBundle | null;
 
+  /** Klasifikasi target kategorikal (pohon keputusan + Naive Bayes). Opsional: snapshot lama tidak punya. */
+  classification?: ClassificationBundle | null;
+
   /** Label engine/model yang dipakai — untuk badge di dashboard & PDF. */
   _meta?: {
     model?: string;
@@ -274,7 +278,10 @@ export async function analyzeFile(
   onProgress?.("Meramal deret waktu (ARIMA)…");
   await microTick();
   const forecasts = computeForecasts(analysis, profiles);
-  const insights = generateInsights(analysis, profiles, inspection.domain, multivariate, forecasts);
+  onProgress?.("Melatih model klasifikasi…");
+  await microTick();
+  const classification = computeClassification(cleaned.rows, profiles, intent);
+  const insights = generateInsights(analysis, profiles, inspection.domain, multivariate, forecasts, classification);
   const kpis = generateKpis(analysis, profiles);
   const summary = generateSummary(analysis, profiles, file.name, inspection.domain);
   const conclusion = generateConclusion(analysis, profiles, inspection.domain);
@@ -303,6 +310,7 @@ export async function analyzeFile(
     charts,
     multivariate,
     forecasts,
+    classification,
     promptApplied: prompt,
     intent,
     durationMs,

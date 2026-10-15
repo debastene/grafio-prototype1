@@ -1409,6 +1409,85 @@ function buildTrends(p: Paper, result: EngineResult) {
   }
 }
 
+function buildClassification(p: Paper, result: EngineResult) {
+  const r = result.classification?.result;
+  if (!r) return;
+  const pc = (v: number) => `${(v * 100).toFixed(1)}%`;
+  const binary = r.classes.length === 2;
+  p.newPage();
+  p.section(
+    "Klasifikasi",
+    `Apa yang menentukan ${r.target}? Pohon keputusan (CART, Gini) dan Naive Bayes dibandingkan dengan baseline kelas mayoritas. Data dibagi stratified 70/30; kedalaman pohon dipilih dengan 5-fold cross-validation + aturan 1-SE.`,
+  );
+  p.defList([
+    { label: "Data", value: `${r.n} baris (latih ${r.nTrain}, uji ${r.nTest}); kelas: ${r.classes.map((c) => `${c.label} ${c.count}`).join(", ")}` },
+    { label: "Fitur", value: r.features.map((f) => f.name).join(", ") },
+  ]);
+
+  p.subhead("Perbandingan Model (data uji)");
+  p.table({
+    head: ["Model", "Akurasi", "Balanced acc.", "F1 makro", ...(binary ? ["AUC"] : [])],
+    body: (
+      [
+        ["tree", `Pohon keputusan (kedalaman ${r.tree.depth})`, r.tree],
+        ["naiveBayes", "Naive Bayes", r.naiveBayes],
+        ["baseline", `Baseline (selalu "${r.baseline.majority}")`, r.baseline],
+      ] as const
+    ).map(([key, label, m]) => [
+      `${label}${r.best === key ? " *" : ""}`,
+      pc(m.accuracy),
+      pc(m.balancedAccuracy),
+      pc(m.macroF1),
+      ...(binary ? [m.auc === null ? "-" : m.auc.toFixed(3)] : []),
+    ]),
+    align: ["left", "right", "right", "right", "right"],
+  });
+  const mc = r.mcnemar;
+  p.paragraph(
+    `Tanda (*) = model terbaik menurut balanced accuracy.${
+      mc
+        ? ` Uji McNemar pohon vs Naive Bayes: b = ${mc.b}, c = ${mc.c}, p = ${mc.pValue.toFixed(3)} (${mc.exact ? "binomial eksak" : "chi-kuadrat dengan koreksi kontinuitas"}) -- ${mc.pValue < 0.05 ? "berbeda signifikan" : "tidak berbeda signifikan"}.`
+        : ""
+    }`,
+    { italic: true, color: TH.inkMuted, size: 9 },
+  );
+
+  const best = r.best === "naiveBayes" ? r.naiveBayes : r.tree;
+  const labels = best.perClass.map((c) => c.label);
+  p.subhead(`Confusion Matrix -- ${r.best === "naiveBayes" ? "Naive Bayes" : "Pohon Keputusan"}`);
+  p.table({
+    head: ["Aktual / Prediksi", ...labels],
+    body: best.confusion.map((row, i) => [labels[i], ...row.map(String)]),
+    align: ["left", ...labels.map(() => "right" as const)],
+  });
+  p.table({
+    head: ["Kelas", "Precision", "Recall", "F1", "n uji"],
+    body: best.perClass.map((c) => [c.label, pc(c.precision), pc(c.recall), pc(c.f1), String(c.support)]),
+    align: ["left", "right", "right", "right", "right"],
+  });
+
+  p.subhead("Aturan Pohon Keputusan");
+  r.tree.rules.forEach((rule, i) =>
+    p.paragraph(
+      `${i + 1}. JIKA ${rule.conditions.join(" DAN ") || "(semua baris)"} MAKA ${r.target} = ${rule.prediction} (${(rule.confidence * 100).toFixed(0)}% dari ${rule.n} baris latih).`,
+      { size: 10 },
+    ),
+  );
+  if (r.tree.importance.length) {
+    p.subhead("Kolom Paling Berpengaruh");
+    p.table({
+      head: ["Kolom", "Kepentingan (penurunan Gini)"],
+      body: r.tree.importance.slice(0, 8).map((f) => [f.feature, pc(f.value)]),
+      align: ["left", "right"],
+    });
+  }
+  for (const n of r.notes) p.paragraph(n, { italic: true, color: TH.inkMuted, size: 9 });
+  p.paragraph(
+    "Kepentingan fitur dan aturan pohon menunjukkan asosiasi pada data ini, bukan sebab-akibat. Validasi dengan data baru sebelum dipakai untuk keputusan.",
+    { italic: true, color: TH.inkMuted, size: 9 },
+  );
+}
+
 function buildForecast(p: Paper, result: EngineResult) {
   const fc = result.forecasts;
   if (!fc || (fc.items.length === 0 && fc.skipped.length === 0)) return;
@@ -1579,6 +1658,7 @@ export async function generateReport(
   buildMultivariate(p, result);
   buildTrends(p, result);
   buildForecast(p, result);
+  buildClassification(p, result);
   buildRecommendations(p, result, aiReport);
 
   p.finalize(logo);
