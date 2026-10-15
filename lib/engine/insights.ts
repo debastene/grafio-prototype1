@@ -11,6 +11,7 @@ import { ColProfile } from "./profile";
 import { aggregateSeries, compactNumber, formatByType, formatP, systematicSample } from "./stats";
 import { Domain } from "./domain";
 import { MultivariateResult, kmoLabel } from "./multivariate";
+import { ForecastBundle, mapeLabel } from "./forecast";
 
 export type Insight = {
   type: "trend" | "anomaly" | "target" | "idea";
@@ -63,6 +64,7 @@ export function generateInsights(
   profiles: ColProfile[],
   domain?: Domain,
   multivariate?: MultivariateResult | null,
+  forecasts?: ForecastBundle | null,
 ): Insight[] {
   const out: Insight[] = [];
   const intent = analysis.intentApplied;
@@ -108,6 +110,10 @@ export function generateInsights(
     const p = profiles.find((x) => x.name === t.column);
     if (p) out.push(trendInsight(t, p, hasFocus(t.column)));
   }
+
+  // ===== Ramalan ARIMA (satu insight, kolom pertama yang berhasil dimodelkan)
+  const fcInsight = forecastInsight(forecasts, profiles);
+  if (fcInsight) out.push(fcInsight);
 
   // ===== Correlation insights (sudah lolos uji + koreksi BH di analyze)
   if (analysis.correlations.length > 0) {
@@ -205,6 +211,30 @@ export function generateInsights(
   }
 
   return out.slice(0, 6);
+}
+
+/**
+ * Insight ramalan ARIMA. Selalu menyebut rentang 95% dan hasil uji holdout —
+ * kalau ARIMA kalah dari metode naif, itu ditulis terang-terangan.
+ */
+export function forecastInsight(fc: ForecastBundle | null | undefined, profiles: ColProfile[]): Insight | null {
+  const f = fc?.items[0];
+  if (!f) return null;
+  const p = profiles.find((x) => x.name === f.column);
+  const v = (n: number) => (p ? fmt(n, p.type, p.name) : compactNumber(n));
+  const h = f.future.mean.length;
+  const last = h - 1;
+  const ho = f.holdout;
+  const evalText = !ho
+    ? ""
+    : ho.best === "arima"
+      ? ` Diuji pada ${ho.h} periode terakhir: ARIMA paling akurat${ho.arima.mape !== null ? ` (MAPE ${ho.arima.mape.toFixed(1)}%, ${mapeLabel(ho.arima.mape)})` : ""}, mengalahkan metode naif & regresi linear.`
+      : ` Catatan: pada ${ho.h} periode uji, metode ${ho.best === "naive" ? "naif (nilai terakhir)" : "regresi linear"} lebih akurat dari ARIMA — pakai ramalan ini sebagai gambaran kasar.`;
+  return {
+    type: "trend",
+    title: `Ramalan ${f.column}: ${v(f.future.mean[last])} dalam ${h} ${f.granularity}`,
+    body: `${f.model.label} memperkirakan ${f.column} (${f.aggregation === "sum" ? "total" : "rata-rata"} per ${f.granularity}) di ${f.future.labels[last]} sekitar ${v(f.future.mean[last])}, rentang 95%: ${v(f.future.lower[last])} – ${v(f.future.upper[last])}.${evalText}`,
+  };
 }
 
 /**

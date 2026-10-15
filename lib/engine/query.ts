@@ -19,6 +19,7 @@ import { ColProfile } from "./profile";
 import { ParsedRow } from "./parse";
 import { summarize, pearsonTest, formatByType, formatP, compactNumber } from "./stats";
 import { parseIntent } from "./intent";
+import { identificationText, kpssStepLabel } from "./forecast";
 
 export type QueryAnswer = {
   text: string;
@@ -337,6 +338,52 @@ function tryMultivariate(q: string, result: EngineResult): QueryAnswer | null {
 /**
  * Trend query.
  */
+/**
+ * Ramalan ARIMA: "ramalan penjualan", "forecast 3 bulan", "model arima apa?"
+ */
+function tryForecast(q: string, result: EngineResult): QueryAnswer | null {
+  const lower = q.toLowerCase();
+  const asksArima = /\b(arima|box-jenkins|box jenkins)\b/.test(lower);
+  if (!asksArima && !/\b(ramal|ramalan|peramalan|forecast|prediksi|proyeksi|ke depan)\b/.test(lower)) return null;
+  const fc = result.forecasts;
+  const items = fc?.items ?? [];
+  if (items.length === 0) {
+    if (!asksArima) return null; // biarkan tryTrend menjawab
+    const why = fc?.skipped.map((s) => `${s.column}: ${s.reason}`).join("; ");
+    return {
+      text: result.analysis.timeAxis
+        ? `ARIMA tidak dihitung${why ? ` (${why})` : ""}.`
+        : "ARIMA butuh kolom waktu (tanggal/tahun/bulan) — dataset ini tidak punya.",
+      confidence: 0.9,
+    };
+  }
+  const f =
+    items.find((it) => lower.includes(it.column.toLowerCase())) ??
+    items.find((it) => it.column.toLowerCase().split(/[_\s]+/).some((t) => t.length >= 3 && lower.includes(t))) ??
+    items[0];
+  const profile = result.profile.find((p) => p.name === f.column);
+  const kpss = `${f.identification.kpss.map((k) => `${kpssStepLabel(k)}: ${k.stationary ? "stasioner" : "belum stasioner"}`).join(", ")} → ${identificationText(f.model)}`;
+  const lb = f.diagnostics.ljungBox;
+  const ho = f.holdout;
+  const hoText = !ho
+    ? ""
+    : ` Uji ${ho.h} periode terakhir — RMSE ARIMA ${fmt(ho.arima.rmse, profile)}, naif ${fmt(ho.naive.rmse, profile)}, linear ${fmt(ho.linear.rmse, profile)}${
+        ho.best === "arima" ? " (ARIMA terbaik)" : ` (${ho.best === "naive" ? "naif" : "linear"} lebih akurat — perlakukan ramalan sebagai gambaran kasar)`
+      }.`;
+  return {
+    text: `${f.model.label} untuk ${f.column} (${f.aggregation === "sum" ? "total" : "rata-rata"} per ${f.granularity}, ${f.n} periode). KPSS: ${kpss}. Ljung-Box residual ${lb ? `p=${lb.pValue.toFixed(3)} (${lb.pValue >= 0.05 ? "white noise" : "masih berpola"})` : "tidak diuji"}.${hoText} Ramalan dengan rentang 95%:`,
+    data: {
+      kind: "table",
+      rows: f.future.labels.map((label, i) => ({
+        name: label,
+        value: `${fmt(f.future.mean[i], profile)} (${fmt(f.future.lower[i], profile)} – ${fmt(f.future.upper[i], profile)})`,
+      })),
+    },
+    matchedColumns: [f.column],
+    confidence: 0.95,
+  };
+}
+
 function tryTrend(q: string, result: EngineResult): QueryAnswer | null {
   const lower = q.toLowerCase();
   if (!/\b(tren|trend|naik|turun|growth|pertumbuhan|forecast|prediksi)\b/.test(lower)) return null;
@@ -529,6 +576,7 @@ export function answerQuery(question: string, result: EngineResult): QueryAnswer
     () => tryRanking(q, result.profile, result.tableSnapshot.rows),
     () => tryMultivariate(q, result),
     () => tryCorrelation(q, result.profile),
+    () => tryForecast(q, result),
     () => tryTrend(q, result),
     () => tryAnomaly(q, result),
     () => tryAggregation(q, result.profile),

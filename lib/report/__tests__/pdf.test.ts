@@ -2,6 +2,7 @@ import { writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { analyzeFile } from "@/lib/engine";
 import { generateReport } from "../pdf";
+import { mulberry32 } from "@/lib/engine/multivariate";
 
 /** 3 segmen pelanggan: hemat (sering, kecil), premium (jarang, besar), baru. */
 function customerCsv(): string {
@@ -50,6 +51,30 @@ describe("generateReport", () => {
     expect(raw).toContain("UJI KELAYAKAN PCA");
     expect(raw).toContain("KLASTER K-MEANS");
     expect(raw).toMatch(/k = 3, silhouette 0\.\d\d/);
+  });
+
+  it("data deret waktu → bab Peramalan ARIMA dengan persamaan ASCII", async () => {
+    // AR(1) + tren dengan noise acak ber-seed (bukan sinus deterministik, yang
+    // terlalu mudah diramal sehingga pita 95% kolaps).
+    const rand = mulberry32(48);
+    const noise = () => Math.sqrt(-2 * Math.log(Math.max(rand(), 1e-12))) * Math.cos(2 * Math.PI * rand());
+    const lines = ["bulan,penjualan"];
+    let a = 0;
+    for (let k = 0; k < 48; k++) {
+      a = 0.5 * a + noise();
+      lines.push(`${new Date(Date.UTC(2022, k, 1)).toISOString().slice(0, 10)},${Math.round(5000 + 45 * k + 400 * a)}`);
+    }
+    const r = await analyzeFile(new File([lines.join("\n")], "penjualan-bulanan.csv"), "");
+    expect(r.forecasts?.items.length).toBe(1);
+    const blob = await generateReport(r);
+    if (process.env.GRAFIO_PDF_OUT) {
+      writeFileSync(process.env.GRAFIO_PDF_OUT.replace(/\.pdf$/, "-arima.pdf"), Buffer.from(await blob.arrayBuffer()));
+    }
+    const raw = await pdfText(blob);
+    expect(raw).toContain("Peramalan ARIMA");
+    expect(raw).toContain("Ljung-Box");
+    expect(raw).toMatch(/y_t = /);
+    expect(raw).not.toContain("−"); // minus Unicode tidak boleh lolos ke font bawaan
   });
 
   it("proyek lama tanpa hasil multivariat tetap bisa diekspor", async () => {

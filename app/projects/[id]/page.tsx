@@ -16,6 +16,7 @@ import DoughnutChart from "@/components/ui/charts/DoughnutChart";
 import ScatterChart from "@/components/ui/charts/ScatterChart";
 import LineAreaChart from "@/components/ui/charts/LineAreaChart";
 import MultivariatePanel from "@/components/ui/MultivariatePanel";
+import ForecastPanel from "@/components/ui/ForecastPanel";
 import { getProject, deleteProject } from "@/lib/db/projects";
 import type { ProjectRow } from "@/lib/db/types";
 import type { EngineResult } from "@/lib/engine";
@@ -406,6 +407,13 @@ export default function ProjectDetail() {
                 >
                   <CorrHeatmap matrix={result.analysis.correlationMatrix} />
                 </ChartFrame>
+              </div>
+            )}
+
+            {/* PERAMALAN ARIMA (snapshot lama tidak punya field ini) */}
+            {result.forecasts && (
+              <div className="mb-6">
+                <ForecastPanel fc={result.forecasts} profiles={result.profile} fileName={result.fileName} />
               </div>
             )}
 

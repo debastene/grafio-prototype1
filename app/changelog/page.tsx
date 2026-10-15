@@ -11,6 +11,18 @@ export const metadata = {
 
 const releases = [
   {
+    version: "v2.5.0",
+    date: "15 Oktober 2026",
+    headline: "Peramalan ARIMA (Box-Jenkins)",
+    changes: [
+      { type: "feature", text: "Peramalan ARIMA otomatis untuk data berkolom waktu: identifikasi (uji KPSS, ACF/PACF), estimasi (orde dipilih dengan AICc), diagnostik (Ljung-Box), dan ramalan dengan rentang 95% yang melebar sesuai horizon." },
+      { type: "feature", text: "KPSS level + tren membedakan tren deterministik (cukup detrend) dari tren stokastik (perlu difference) — menghindari over-differencing yang membuat ramalan mendatar." },
+      { type: "improvement", text: "Evaluasi jujur: model diuji pada periode terakhir yang disembunyikan dan dibandingkan dengan metode naif & regresi linear (RMSE, MAE, MAPE kriteria Lewis). Kalau ARIMA kalah, Grafio bilang terus terang." },
+      { type: "improvement", text: "Data transaksi otomatis dijadikan deret reguler (harian / hari kerja / mingguan / bulanan); periode terakhir yang belum lengkap tidak ikut dihitung; pola musiman diberi peringatan." },
+      { type: "feature", text: "Bab Peramalan ARIMA di laporan PDF, plus chat engine menjawab \"ramalan penjualan?\" dan \"model ARIMA apa?\" langsung dari hasil hitungan." },
+    ],
+  },
+  {
     version: "v2.4.0",
     date: "14 Oktober 2026",
     headline: "Laporan PDF Multivariat",

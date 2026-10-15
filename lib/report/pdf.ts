@@ -24,7 +24,8 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { EngineResult } from "@/lib/engine";
 import { kmoLabel } from "@/lib/engine/multivariate";
-import { formatByType, formatP } from "@/lib/engine/stats";
+import { compactNumber, formatByType, formatP } from "@/lib/engine/stats";
+import { arimaEquation, identificationText, kpssStepLabel, mapeLabel } from "@/lib/engine/forecast";
 import { SITE_HOST } from "@/lib/site";
 
 // ============================================================
@@ -686,6 +687,126 @@ class Paper {
     this.y = ly + 16;
   }
 
+  /**
+   * Grafik ramalan: aktual (biru) + ramalan (amber putus-putus) + pita 95%.
+   */
+  forecastChart(opts: {
+    labels: string[];
+    history: number[];
+    futureLabels: string[];
+    mean: number[];
+    lower: number[];
+    upper: number[];
+    format: (v: number) => string;
+  }): void {
+    const { history, mean, lower, upper } = opts;
+    const n = history.length;
+    const h = mean.length;
+    if (n === 0 || h === 0) return;
+    const H = 170;
+    this.ensureSpace(H + 40);
+    const doc = this.doc;
+    const x0 = MARGIN_X + 44;
+    const w = CONTENT_W - 44;
+    const y0 = this.y;
+
+    let lo = Math.min(...history, ...lower);
+    let hi = Math.max(...history, ...upper);
+    if (hi - lo < 1e-9) {
+      lo -= 1;
+      hi += 1;
+    }
+    const pad = (hi - lo) * 0.06;
+    lo -= pad;
+    hi += pad;
+    const total = n + h;
+    const sx = (i: number) => x0 + (i / (total - 1)) * w;
+    const sy = (v: number) => y0 + H - ((v - lo) / (hi - lo)) * H;
+
+    // Grid + label sumbu Y
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    for (const t of [0, 0.5, 1]) {
+      const v = lo + pad + t * (hi - lo - 2 * pad);
+      doc.setDrawColor(...TH.ruleSoft);
+      doc.setLineWidth(0.3);
+      doc.line(x0, sy(v), x0 + w, sy(v));
+      doc.setTextColor(...TH.inkMuted);
+      const label = safeText(opts.format(v));
+      doc.text(label, x0 - 5 - doc.getTextWidth(label), sy(v) + 2.5);
+    }
+
+    // Pita 95% (poligon: atas maju, bawah mundur) — disambung ke aktual terakhir.
+    const bandUp = [[n - 1, history[n - 1]], ...upper.map((v, i) => [n + i, v])];
+    const bandLo = [[n - 1, history[n - 1]], ...lower.map((v, i) => [n + i, v])].reverse();
+    const poly = [...bandUp, ...bandLo].map(([i, v]) => [sx(i), sy(v)]);
+    const segs = poly.slice(1).map((pt, k) => [pt[0] - poly[k][0], pt[1] - poly[k][1]]);
+    doc.setFillColor(254, 243, 199); // amber-100
+    doc.lines(segs, poly[0][0], poly[0][1], [1, 1], "F", true);
+
+    // Garis aktual
+    doc.setDrawColor(...TH.brand);
+    doc.setLineWidth(1.1);
+    for (let i = 1; i < n; i++) doc.line(sx(i - 1), sy(history[i - 1]), sx(i), sy(history[i]));
+
+    // Garis ramalan (putus-putus)
+    doc.setDrawColor(...TH.warning);
+    doc.setLineWidth(1.3);
+    doc.setLineDashPattern([4, 2.5], 0);
+    let px = sx(n - 1);
+    let py = sy(history[n - 1]);
+    mean.forEach((v, i) => {
+      doc.line(px, py, sx(n + i), sy(v));
+      px = sx(n + i);
+      py = sy(v);
+    });
+    doc.setLineDashPattern([], 0);
+
+    // Pemisah aktual | ramalan
+    doc.setDrawColor(...TH.rule);
+    doc.setLineWidth(0.4);
+    doc.line(sx(n - 1), y0, sx(n - 1), y0 + H);
+
+    // Label sumbu X: awal, akhir aktual, akhir ramalan
+    doc.setFontSize(7);
+    doc.setTextColor(...TH.inkMuted);
+    const xl = (i: number, txt: string, align: "left" | "center" | "right") => {
+      const t = safeText(txt);
+      const tw = doc.getTextWidth(t);
+      const x = align === "left" ? sx(i) : align === "right" ? sx(i) - tw : sx(i) - tw / 2;
+      doc.text(t, x, y0 + H + 10);
+    };
+    xl(0, opts.labels[0] ?? "", "left");
+    if (n > 2) xl(n - 1, opts.labels[n - 1] ?? "", "center");
+    xl(total - 1, opts.futureLabels[h - 1] ?? "", "right");
+
+    // Legenda
+    const ly = y0 + H + 24;
+    let lx = x0;
+    const legend: [string, [number, number, number], "line" | "dash" | "band"][] = [
+      ["Aktual", TH.brand, "line"],
+      ["Ramalan", TH.warning, "dash"],
+      ["Rentang 95%", [254, 243, 199], "band"],
+    ];
+    doc.setFontSize(8);
+    for (const [label, color, kind] of legend) {
+      if (kind === "band") {
+        doc.setFillColor(...color);
+        doc.rect(lx, ly - 5, 14, 6, "F");
+      } else {
+        doc.setDrawColor(...color);
+        doc.setLineWidth(1.3);
+        if (kind === "dash") doc.setLineDashPattern([3, 2], 0);
+        doc.line(lx, ly - 2, lx + 14, ly - 2);
+        doc.setLineDashPattern([], 0);
+      }
+      doc.setTextColor(...TH.inkSoft);
+      doc.text(label, lx + 18, ly);
+      lx += 18 + doc.getTextWidth(label) + 16;
+    }
+    this.y = ly + 14;
+  }
+
   spacer(h: number): void {
     this.y += h;
   }
@@ -994,6 +1115,12 @@ function buildSummary(p: Paper, result: EngineResult, aiReport: AiReportContent 
         ? `k = ${result.multivariate.clusters.k}, silhouette ${result.multivariate.clusters.silhouette.toFixed(2)} (struktur ${result.multivariate.clusters.structure})`
         : "tidak dihitung",
     },
+    {
+      label: "Peramalan",
+      value: result.forecasts?.items.length
+        ? result.forecasts.items.map((f) => `${f.column}: ${f.model.label}`).join("; ")
+        : "tidak dihitung",
+    },
     { label: "Format Angka", value: result.numberFormat.toUpperCase() },
     { label: "Total Observasi", value: result.rowCount.toLocaleString("id") },
   ]);
@@ -1282,6 +1409,84 @@ function buildTrends(p: Paper, result: EngineResult) {
   }
 }
 
+function buildForecast(p: Paper, result: EngineResult) {
+  const fc = result.forecasts;
+  if (!fc || (fc.items.length === 0 && fc.skipped.length === 0)) return;
+  p.newPage();
+  p.section(
+    "Peramalan ARIMA",
+    "Metode Box-Jenkins: identifikasi (uji KPSS, ACF/PACF), estimasi (conditional sum of squares, AICc), diagnostik (Ljung-Box), dan evaluasi holdout terhadap metode naif & regresi linear.",
+  );
+
+  fc.items.forEach((f, idx) => {
+    if (idx > 0) p.newPage();
+    const prof = result.profile.find((x) => x.name === f.column);
+    const fmt = (v: number) => (prof ? formatByType(v, prof.type, prof.name) : fmtNum(v));
+    const ho = f.holdout;
+    const lb = f.diagnostics.ljungBox;
+
+    p.subhead(`${f.column} -- ${f.model.label}`, 220);
+    const show = Math.min(60, f.history.values.length);
+    p.forecastChart({
+      labels: f.history.labels.slice(-show),
+      history: f.history.values.slice(-show),
+      futureLabels: f.future.labels,
+      mean: f.future.mean,
+      lower: f.future.lower,
+      upper: f.future.upper,
+      format: fmt,
+    });
+
+    p.defList([
+      { label: "Data", value: `${f.n} periode, ${f.aggregation === "sum" ? "total" : "rata-rata"} per ${f.granularity}` },
+      {
+        label: "1. Identifikasi",
+        value: `KPSS ${f.identification.kpss
+          .map((k) => `${kpssStepLabel(k)} ${k.stat.toFixed(3)} (${k.stationary ? "stasioner" : "belum stasioner"})`)
+          .join("; ")}. ${identificationText(f.model)}`,
+      },
+      { label: "2. Estimasi", value: `${arimaEquation(f.model, true)}; sigma^2 = ${compactNumber(f.model.sigma2)}, AICc = ${f.model.aicc.toFixed(1)}.` },
+      {
+        label: "3. Diagnostik",
+        value: lb
+          ? `Ljung-Box Q = ${lb.q.toFixed(2)} (lag ${lb.lags}, df ${lb.df}), p = ${lb.pValue.toFixed(3)} -- ${
+              lb.pValue >= 0.05 ? "residual white noise, model memadai" : "residual masih berpola"
+            }.`
+          : "deret terlalu pendek untuk uji Ljung-Box.",
+      },
+      {
+        label: "4. Evaluasi",
+        value: ho
+          ? `${ho.h} periode terakhir: RMSE ARIMA ${fmt(ho.arima.rmse)}, naif ${fmt(ho.naive.rmse)}, linear ${fmt(ho.linear.rmse)}${
+              ho.arima.mape !== null ? `; MAPE ARIMA ${ho.arima.mape.toFixed(1)}% (${mapeLabel(ho.arima.mape)})` : ""
+            } -- terbaik: ${ho.best === "arima" ? "ARIMA" : ho.best === "naive" ? "naif" : "regresi linear"}.`
+          : "deret terlalu pendek untuk evaluasi holdout.",
+      },
+    ]);
+
+    p.table({
+      head: ["Periode", "Ramalan", "Batas bawah 95%", "Batas atas 95%"],
+      body: f.future.labels.map((l, i) => [l, fmt(f.future.mean[i]), fmt(f.future.lower[i]), fmt(f.future.upper[i])]),
+      align: ["left", "right", "right", "right"],
+    });
+    if (f.candidates.length > 1) {
+      p.paragraph(
+        `Kandidat AICc terbaik: ${f.candidates.map((c) => `${c.label} (${c.aicc.toFixed(1)})`).join(", ")}.`,
+        { italic: true, color: TH.inkMuted, size: 9 },
+      );
+    }
+    for (const n of f.notes) p.paragraph(n, { italic: true, color: TH.inkMuted, size: 9 });
+  });
+
+  for (const s of fc.skipped) {
+    p.paragraph(`${s.column} tidak diramal: ${s.reason}.`, { italic: true, color: TH.inkMuted, size: 9 });
+  }
+  p.paragraph(
+    "Ramalan mengasumsikan pola masa lalu berlanjut. Rentang 95% melebar makin jauh ke depan; kejadian luar biasa (promo, libur, krisis) tidak tercakup model.",
+    { italic: true, color: TH.inkMuted, size: 9 },
+  );
+}
+
 function buildRecommendations(p: Paper, result: EngineResult, aiReport: AiReportContent | null) {
   p.newPage();
   p.section("Rekomendasi", "Langkah konkret yang dapat diambil berdasarkan temuan analitis.");
@@ -1373,6 +1578,7 @@ export async function generateReport(
   buildCorrelations(p, result);
   buildMultivariate(p, result);
   buildTrends(p, result);
+  buildForecast(p, result);
   buildRecommendations(p, result, aiReport);
 
   p.finalize(logo);

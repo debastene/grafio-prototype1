@@ -22,6 +22,7 @@ import ChartSwitcher from "@/components/ui/charts/ChartSwitcher";
 import LineAreaChart from "@/components/ui/charts/LineAreaChart";
 import ChartFrame from "@/components/ui/charts/ChartFrame";
 import MultivariatePanel from "@/components/ui/MultivariatePanel";
+import ForecastPanel from "@/components/ui/ForecastPanel";
 import {
   Share2, RefreshCw, Sparkles,
   FileText, Copy, Check, Cpu, Database, AlertTriangle, Loader2,
@@ -636,6 +637,11 @@ function DashboardContent() {
                   })}
                 </div>
               </Card>
+            )}
+
+            {/* PERAMALAN ARIMA — hanya kalau ada sumbu waktu */}
+            {mode === "ai" && aiResult?.forecasts && (
+              <ForecastPanel fc={aiResult.forecasts} profiles={aiResult.profile} fileName={aiResult.fileName} />
             )}
 
             {/* ANALISIS MULTIVARIAT — PCA & klaster k-means */}
