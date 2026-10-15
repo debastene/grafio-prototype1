@@ -154,13 +154,32 @@ describe("forecastSeries", () => {
     expect(r.diagnostics.ljungBox).not.toBeNull();
   });
 
-  it("pola musiman 12 bulan terdeteksi & diberi catatan", () => {
-    const e = normals(60, 9);
-    const y = e.map((v, t) => 200 + 40 * Math.sin((2 * Math.PI * t) / 12) + 3 * v);
+  it("pola musiman 12 bulan → SARIMA dengan difference musiman, ramalan mengikuti musim", () => {
+    const e = normals(72, 9);
+    const y = e.map((v, t) => 200 + 1.5 * t + 40 * Math.sin((2 * Math.PI * t) / 12) + 3 * v);
     const r = forecastSeries("penjualan", series(y), "sum");
     if ("reason" in r) throw new Error(r.reason);
-    expect(r.seasonality?.significant).toBe(true);
-    expect(r.notes.join(" ")).toMatch(/musiman/);
+    expect(r.model.label).toMatch(/^SARIMA\(\d,\d,\d\)\(\d,1,\d\)\[12\]/);
+    expect(r.identification.season?.strength).toBeGreaterThan(0.64);
+    expect(r.identification.season?.differenced).toBe(true);
+    // Puncak musim (t ≡ 3 mod 12, sin maksimum) lebih tinggi dari lembahnya (t ≡ 9) dalam ramalan.
+    const at = (mod: number) => r.future.mean[r.future.labels.findIndex((_, j) => (72 + j) % 12 === mod)];
+    expect(at(3) - at(9)).toBeGreaterThan(50);
+    // Pembanding naif musiman ikut dievaluasi; sisa musiman tidak lagi diberi peringatan.
+    expect(r.holdout?.seasonalNaive).not.toBeNull();
+    expect(r.notes.join(" ")).not.toMatch(/tidak tertangkap model/);
+    // Korelogram cukup panjang untuk memperlihatkan lag musiman 12 (maks n/3 lag).
+    expect(r.identification.acf.length).toBeGreaterThanOrEqual(13);
+  });
+
+  it("data non-musiman dengan periode kandidat 12 tetap ARIMA biasa", () => {
+    const e = normals(80, 5);
+    let a = 0;
+    const y = e.map((v) => (a = 0.6 * a + v) + 100);
+    const r = forecastSeries("x", series(y), "mean");
+    if ("reason" in r) throw new Error(r.reason);
+    expect(r.model.label).toMatch(/^ARIMA/);
+    expect(r.identification.season?.differenced).toBe(false);
   });
 });
 

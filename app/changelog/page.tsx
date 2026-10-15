@@ -11,6 +11,17 @@ export const metadata = {
 
 const releases = [
   {
+    version: "v2.6.0",
+    date: "15 Oktober 2026",
+    headline: "SARIMA untuk Data Musiman",
+    changes: [
+      { type: "feature", text: "Peramalan SARIMA(p,d,q)(P,D,Q)[s] otomatis untuk data musiman — bulanan (12), kuartalan (4), harian (7), hari kerja (5): ramalan kini mengikuti puncak & lembah musim." },
+      { type: "feature", text: "Identifikasi musiman memakai kekuatan musiman F_s dari dekomposisi klasik (F_s > 0,64 → difference musiman); korelogram ACF/PACF menandai lag musiman." },
+      { type: "improvement", text: "Evaluasi holdout menambah pembanding naif musiman (nilai musim lalu) — tolok ukur yang adil untuk data musiman." },
+      { type: "improvement", text: "Pencarian model stepwise (Hyndman-Khandakar, seperti auto.arima) + perhitungan CSS yang lebih ringan: analisis deret musiman ±5× lebih cepat di browser." },
+    ],
+  },
+  {
     version: "v2.5.0",
     date: "15 Oktober 2026",
     headline: "Peramalan ARIMA (Box-Jenkins)",

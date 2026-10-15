@@ -19,7 +19,7 @@ import { ColProfile } from "./profile";
 import { ParsedRow } from "./parse";
 import { summarize, pearsonTest, formatByType, formatP, compactNumber } from "./stats";
 import { parseIntent } from "./intent";
-import { identificationText, kpssStepLabel } from "./forecast";
+import { identificationText, kpssStepLabel, methodLabel } from "./forecast";
 
 export type QueryAnswer = {
   text: string;
@@ -362,13 +362,13 @@ function tryForecast(q: string, result: EngineResult): QueryAnswer | null {
     items.find((it) => it.column.toLowerCase().split(/[_\s]+/).some((t) => t.length >= 3 && lower.includes(t))) ??
     items[0];
   const profile = result.profile.find((p) => p.name === f.column);
-  const kpss = `${f.identification.kpss.map((k) => `${kpssStepLabel(k)}: ${k.stationary ? "stasioner" : "belum stasioner"}`).join(", ")} → ${identificationText(f.model)}`;
+  const kpss = `${f.identification.kpss.map((k) => `${kpssStepLabel(k)}: ${k.stationary ? "stasioner" : "belum stasioner"}`).join(", ")} → ${identificationText(f.model, f.identification.season)}`;
   const lb = f.diagnostics.ljungBox;
   const ho = f.holdout;
   const hoText = !ho
     ? ""
-    : ` Uji ${ho.h} periode terakhir — RMSE ARIMA ${fmt(ho.arima.rmse, profile)}, naif ${fmt(ho.naive.rmse, profile)}, linear ${fmt(ho.linear.rmse, profile)}${
-        ho.best === "arima" ? " (ARIMA terbaik)" : ` (${ho.best === "naive" ? "naif" : "linear"} lebih akurat — perlakukan ramalan sebagai gambaran kasar)`
+    : ` Uji ${ho.h} periode terakhir — RMSE model ${fmt(ho.arima.rmse, profile)}${ho.seasonalNaive ? `, naif musiman ${fmt(ho.seasonalNaive.rmse, profile)}` : ""}, naif ${fmt(ho.naive.rmse, profile)}, linear ${fmt(ho.linear.rmse, profile)}${
+        ho.best === "arima" ? " (model ini terbaik)" : ` (${methodLabel(ho.best)} lebih akurat — perlakukan ramalan sebagai gambaran kasar)`
       }.`;
   return {
     text: `${f.model.label} untuk ${f.column} (${f.aggregation === "sum" ? "total" : "rata-rata"} per ${f.granularity}, ${f.n} periode). KPSS: ${kpss}. Ljung-Box residual ${lb ? `p=${lb.pValue.toFixed(3)} (${lb.pValue >= 0.05 ? "white noise" : "masih berpola"})` : "tidak diuji"}.${hoText} Ramalan dengan rentang 95%:`,

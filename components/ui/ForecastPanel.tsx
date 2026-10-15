@@ -11,7 +11,7 @@ import Card from "@/components/ui/Card";
 import ChartFrame from "@/components/ui/charts/ChartFrame";
 import ForecastChart from "@/components/ui/charts/ForecastChart";
 import { PALETTE } from "@/components/ui/charts/registry";
-import type { ForecastBundle } from "@/lib/engine/forecast";
+import type { ForecastBundle, ForecastError, ForecastMethod } from "@/lib/engine/forecast";
 import { arimaEquation, identificationText, kpssStepLabel, mapeLabel } from "@/lib/engine/forecast";
 import type { ColProfile } from "@/lib/engine/profile";
 import { compactNumber, formatByType } from "@/lib/engine/stats";
@@ -62,7 +62,7 @@ export default function ForecastPanel({ fc, profiles, fileName }: Props) {
         <div>
           <p className="text-[10px] uppercase tracking-widest text-cyan">Peramalan Deret Waktu</p>
           <h3 id="fc-heading" className="font-syne font-bold text-white text-lg">
-            ARIMA — metode Box-Jenkins
+            {f.model.s ? "SARIMA" : "ARIMA"} — metode Box-Jenkins
           </h3>
           <p className="text-xs text-muted mt-1">
             {f.column} ({f.aggregation === "sum" ? "total" : "rata-rata"} per {f.granularity}), {f.n} periode ·{" "}
@@ -111,7 +111,8 @@ export default function ForecastPanel({ fc, profiles, fileName }: Props) {
           <Step n={1} title="Identifikasi" />
           <p className="text-xs text-muted mb-2">
             Uji KPSS (H0: stasioner, α = 5%) — level lalu tren — membedakan tren stokastik (perlu difference) dari tren
-            deterministik (cukup detrend). <span className="text-white">{identificationText(f.model)}</span>
+            deterministik (cukup detrend).{f.identification.season ? " Kekuatan musiman F_s menentukan difference musiman." : ""}{" "}
+            <span className="text-white">{identificationText(f.model, f.identification.season)}</span>
           </p>
           <table className="w-full text-xs mb-3">
             <thead>
@@ -136,8 +137,8 @@ export default function ForecastPanel({ fc, profiles, fileName }: Props) {
             </tbody>
           </table>
           <div className="grid grid-cols-2 gap-3">
-            <Correlogram title="ACF" values={f.identification.acf} bound={f.identification.bound} />
-            <Correlogram title="PACF" values={f.identification.pacf} bound={f.identification.bound} />
+            <Correlogram title="ACF" values={f.identification.acf} bound={f.identification.bound} season={f.identification.season?.period} />
+            <Correlogram title="PACF" values={f.identification.pacf} bound={f.identification.bound} season={f.identification.season?.period} />
           </div>
           <p className="text-[10px] text-muted mt-1">
             Batang amber melewati batas ±1,96/√n (garis putus-putus) = autokorelasi signifikan.
@@ -191,7 +192,7 @@ export default function ForecastPanel({ fc, profiles, fileName }: Props) {
           ) : (
             <p className="text-xs text-muted mb-3">Deret terlalu pendek untuk uji Ljung-Box.</p>
           )}
-          <Correlogram title="ACF residual" values={f.diagnostics.residualAcf} bound={f.diagnostics.bound} />
+          <Correlogram title="ACF residual" values={f.diagnostics.residualAcf} bound={f.diagnostics.bound} season={f.identification.season?.period} />
         </Card>
 
         <Card>
@@ -200,7 +201,7 @@ export default function ForecastPanel({ fc, profiles, fileName }: Props) {
             <>
               <p className="text-xs text-muted mb-2">
                 Model dilatih tanpa {ho.h} periode terakhir, lalu meramal periode itu. Pembanding: metode naif (nilai
-                terakhir) dan regresi linear.
+                terakhir){ho.seasonalNaive ? ", naif musiman (nilai musim lalu)," : ""} dan regresi linear.
               </p>
               <table className="w-full text-xs">
                 <thead>
@@ -215,10 +216,13 @@ export default function ForecastPanel({ fc, profiles, fileName }: Props) {
                   {(
                     [
                       ["arima", ho.model, ho.arima],
+                      ["snaive", "Naif musiman", ho.seasonalNaive ?? null],
                       ["naive", "Naif", ho.naive],
                       ["linear", "Regresi linear", ho.linear],
-                    ] as const
-                  ).map(([key, label, e]) => (
+                    ] as [ForecastMethod, string, ForecastError | null][]
+                  )
+                    .filter((row): row is [ForecastMethod, string, ForecastError] => row[2] !== null)
+                    .map(([key, label, e]) => (
                     <tr key={key} className={`border-t border-borderColor/60 ${ho.best === key ? "text-mint" : "text-muted"}`}>
                       <td className="py-1">{label}{ho.best === key ? " ✓" : ""}</td>
                       <td className="py-1 text-right font-mono">{fmt(e.rmse)}</td>
@@ -230,7 +234,7 @@ export default function ForecastPanel({ fc, profiles, fileName }: Props) {
               </table>
               {ho.arima.mape !== null && (
                 <p className="text-[10px] text-muted mt-2">
-                  MAPE ARIMA {ho.arima.mape.toFixed(1)}% → {mapeLabel(ho.arima.mape)} (kriteria Lewis: &lt;10% sangat
+                  MAPE {ho.model.split("(")[0]} {ho.arima.mape.toFixed(1)}% → {mapeLabel(ho.arima.mape)} (kriteria Lewis: &lt;10% sangat
                   akurat, 10–20% baik, 20–50% wajar, &gt;50% tidak akurat).
                 </p>
               )}
@@ -293,8 +297,21 @@ function Step({ n, title }: { n: number; title: string }) {
   );
 }
 
-/** Korelogram mini: batang per lag + garis batas signifikansi ±bound. */
-function Correlogram({ title, values, bound }: { title: string; values: number[]; bound: number }) {
+/**
+ * Korelogram mini: batang per lag + garis batas signifikansi ±bound.
+ * `season` → garis tipis di lag s, 2s, … supaya lonjakan musiman mudah dilihat.
+ */
+function Correlogram({
+  title,
+  values,
+  bound,
+  season,
+}: {
+  title: string;
+  values: number[];
+  bound: number;
+  season?: number;
+}) {
   const W = 240;
   const H = 72;
   const mid = H / 2;
@@ -302,14 +319,18 @@ function Correlogram({ title, values, bound }: { title: string; values: number[]
   const bw = W / Math.max(1, values.length);
   const y = (v: number) => mid - Math.max(-1, Math.min(1, v)) * scale;
   const sig = values.filter((v) => Math.abs(v) > bound).length;
+  const seasonLags = season ? Array.from({ length: Math.floor(values.length / season) }, (_, k) => (k + 1) * season) : [];
   return (
     <figure>
       <svg
         viewBox={`0 0 ${W} ${H}`}
         className="w-full h-[72px]"
         role="img"
-        aria-label={`${title} lag 1–${values.length}: ${sig} lag signifikan`}
+        aria-label={`${title} lag 1–${values.length}: ${sig} lag signifikan${seasonLags.length ? `; lag musiman ${seasonLags.join(", ")} ditandai` : ""}`}
       >
+        {seasonLags.map((lag) => (
+          <line key={lag} x1={(lag - 0.5) * bw} x2={(lag - 0.5) * bw} y1={0} y2={H} stroke="rgba(255,255,255,0.18)" />
+        ))}
         <line x1={0} x2={W} y1={mid} y2={mid} stroke="rgba(255,255,255,0.15)" />
         {[bound, -bound].map((b) => (
           <line key={b} x1={0} x2={W} y1={y(b)} y2={y(b)} stroke={PALETTE.amber} strokeOpacity={0.5} strokeDasharray="3 3" />
@@ -333,7 +354,10 @@ function Correlogram({ title, values, bound }: { title: string; values: number[]
       </svg>
       <figcaption className="text-[10px] text-muted flex justify-between">
         <span>{title}</span>
-        <span>lag 1–{values.length}</span>
+        <span>
+          lag 1–{values.length}
+          {seasonLags.length ? ` · garis = lag ${seasonLags.join(", ")}` : ""}
+        </span>
       </figcaption>
     </figure>
   );

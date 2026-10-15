@@ -49,6 +49,68 @@ export function difference(x: number[], d: number): number[] {
   return w;
 }
 
+/** Differencing musiman orde D dengan periode s: ∇_s^D x, ∇_s x_t = x_t − x_{t−s}. */
+export function seasonalDifference(x: number[], s: number, D: number): number[] {
+  let w = x.slice();
+  for (let k = 0; k < D; k++) {
+    const next: number[] = [];
+    for (let i = s; i < w.length; i++) next.push(w[i] - w[i - s]);
+    w = next;
+  }
+  return w;
+}
+
+/** Deret yang dimodelkan ARMA: ∇^d ∇_s^D y (musiman dulu, lalu biasa — operatornya komutatif). */
+export function differenceAll(y: number[], d: number, D = 0, s = 0): number[] {
+  return difference(D > 0 && s > 1 ? seasonalDifference(y, s, D) : y, d);
+}
+
+/** Ambang kekuatan musiman untuk difference musiman (forecast::nsdiffs, uji "seas"). */
+export const SEASONAL_STRENGTH_THRESHOLD = 0.64;
+
+/**
+ * Kekuatan musiman F_s = max(0, 1 − Var(R)/Var(S + R)) dari dekomposisi
+ * klasik aditif (Hyndman & Athanasopoulos, FPP): tren = moving average
+ * terpusat orde s (2×s untuk s genap), S = indeks musiman rata-rata, R = sisa.
+ * Mendekati 1 = pola musiman dominan. null kalau data < 2 musim penuh.
+ */
+export function seasonalStrength(y: number[], s: number): number | null {
+  const n = y.length;
+  if (s < 2 || n < 2 * s + 1) return null;
+  const half = Math.floor(s / 2);
+  const detr: { t: number; v: number }[] = [];
+  for (let t = half; t < n - half; t++) {
+    let sum = 0;
+    if (s % 2 === 0) {
+      sum += 0.5 * (y[t - half] + y[t + half]);
+      for (let k = -half + 1; k <= half - 1; k++) sum += y[t + k];
+    } else {
+      for (let k = -half; k <= half; k++) sum += y[t + k];
+    }
+    detr.push({ t, v: y[t] - sum / s });
+  }
+  const idxSum = new Array<number>(s).fill(0);
+  const idxCnt = new Array<number>(s).fill(0);
+  for (const { t, v } of detr) {
+    idxSum[t % s] += v;
+    idxCnt[t % s]++;
+  }
+  const raw = idxSum.map((v, i) => (idxCnt[i] ? v / idxCnt[i] : 0));
+  const center = mean(raw);
+  const idx = raw.map((v) => v - center);
+  const sr = detr.map(({ v }) => v);
+  const r = detr.map(({ t, v }) => v - idx[t % s]);
+  const variance = (x: number[]) => {
+    const m = mean(x);
+    let acc = 0;
+    for (const v of x) acc += (v - m) ** 2;
+    return acc / Math.max(1, x.length - 1);
+  };
+  const vSR = variance(sr);
+  if (vSR < 1e-300) return 0;
+  return Math.max(0, 1 - variance(r) / vSR);
+}
+
 // ============================================================
 // ACF / PACF
 // ============================================================
@@ -185,6 +247,8 @@ export type DifferencingStep = {
   d: number;
   /** "level": stasioner di sekitar rata-rata; "trend": di sekitar tren linear. */
   test: "level" | "trend";
+  /** Orde difference musiman yang sudah diterapkan sebelum uji ini (0 kalau tidak ada). */
+  D?: number;
   stat: number;
   pValue: number;
   stationary: boolean;
@@ -192,40 +256,65 @@ export type DifferencingStep = {
 
 export type Differencing = {
   d: number;
+  /** Orde difference musiman (0 atau 1). */
+  D: number;
+  /** Periode musiman yang dipertimbangkan (null = tidak ada). */
+  s: number | null;
+  /** Kekuatan musiman F_s deret asli (null = tidak dihitung). */
+  seasonalStrength: number | null;
   /** true = tren deterministik (trend-stationary): dimodelkan a + b·t + ARMA, tanpa differencing. */
   trend: boolean;
   steps: DifferencingStep[];
 };
 
 /**
- * Bedakan tren STOKASTIK (unit root → difference) dari tren DETERMINISTIK
- * (stasioner di sekitar garis → cukup detrend), α = 5%:
- *   1. KPSS level pada deret asli tidak menolak → d = 0.
- *   2. Ditolak, tapi KPSS tren tidak menolak → tren deterministik, d = 0.
+ * Tentukan differencing:
+ *   0. Musiman: F_s > 0,64 → difference musiman D = 1 (butuh ≥ 3 musim).
+ *   Lalu bedakan tren STOKASTIK (unit root → difference) dari tren
+ *   DETERMINISTIK (stasioner di sekitar garis → cukup detrend), α = 5%:
+ *   1. KPSS level tidak menolak → d = 0.
+ *   2. Ditolak, tapi KPSS tren tidak menolak (dan D = 0) → tren deterministik, d = 0.
  *      (Men-difference deret seperti ini = over-differencing: muncul MA ≈ −1.)
- *   3. Selain itu difference, ulangi uji level, maks maxD.
+ *   3. Selain itu difference, ulangi uji level; d + D ≤ maxD.
  */
-export function chooseDifferencing(y: number[], maxD = 2): Differencing {
+export function chooseDifferencing(y: number[], maxD = 2, s: number | null = null): Differencing {
+  let D = 0;
+  let strength: number | null = null;
+  const season = s && s >= 2 && y.length >= 3 * s ? s : null;
+  if (season) {
+    strength = seasonalStrength(y, season);
+    if (strength !== null && strength > SEASONAL_STRENGTH_THRESHOLD) D = 1;
+  }
+  const base = D ? seasonalDifference(y, season!, 1) : y;
+  const out = (d: number, trend: boolean, steps: DifferencingStep[]): Differencing => ({
+    d,
+    D,
+    s: season,
+    seasonalStrength: strength,
+    trend,
+    steps,
+  });
   const steps: DifferencingStep[] = [];
-  for (let d = 0; d <= maxD; d++) {
-    const w = difference(y, d);
-    if (w.length < 8) return { d: Math.max(0, d - 1), trend: false, steps };
+  const maxd = Math.max(0, maxD - D);
+  for (let d = 0; d <= maxd; d++) {
+    const w = difference(base, d);
+    if (w.length < 8) return out(Math.max(0, d - 1), false, steps);
     if (sd(w) < 1e-12) {
-      steps.push({ d, test: "level", stat: 0, pValue: 0.1, stationary: true });
-      return { d, trend: false, steps };
+      steps.push({ d, D, test: "level", stat: 0, pValue: 0.1, stationary: true });
+      return out(d, false, steps);
     }
     const t = kpssTest(w, "level");
     const stationary = t.stat <= KPSS_CRITICAL.level[1].c;
-    steps.push({ d, test: "level", stat: t.stat, pValue: t.pValue, stationary });
-    if (stationary) return { d, trend: false, steps };
-    if (d === 0) {
+    steps.push({ d, D, test: "level", stat: t.stat, pValue: t.pValue, stationary });
+    if (stationary) return out(d, false, steps);
+    if (d === 0 && D === 0) {
       const tt = kpssTest(w, "trend");
       const trendStationary = tt.stat <= KPSS_CRITICAL.trend[1].c;
-      steps.push({ d, test: "trend", stat: tt.stat, pValue: tt.pValue, stationary: trendStationary });
-      if (trendStationary) return { d: 0, trend: true, steps };
+      steps.push({ d, D, test: "trend", stat: tt.stat, pValue: tt.pValue, stationary: trendStationary });
+      if (trendStationary) return out(0, true, steps);
     }
   }
-  return { d: maxD, trend: false, steps };
+  return out(maxd, false, steps);
 }
 
 // ============================================================
@@ -410,7 +499,43 @@ export type ArimaOrder = {
   constant: boolean;
   /** Tren deterministik: y_t = a + b·t + N_t, N_t ~ ARMA(p,q). Hanya dengan d = 0. */
   trend?: boolean;
+  /** Bagian musiman (P, D, Q)_s. Tidak diisi / 0 = model non-musiman. */
+  P?: number;
+  D?: number;
+  Q?: number;
+  s?: number;
 };
+
+/** Apakah order punya komponen musiman? */
+export const isSeasonal = (o: Pick<ArimaOrder, "P" | "D" | "Q" | "s">) =>
+  !!o.s && o.s > 1 && ((o.P ?? 0) + (o.D ?? 0) + (o.Q ?? 0) > 0);
+
+function polyMul(a: number[], b: number[]): number[] {
+  const out = new Array<number>(a.length + b.length - 1).fill(0);
+  for (let i = 0; i < a.length; i++) for (let j = 0; j < b.length; j++) out[i + j] += a[i] * b[j];
+  return out;
+}
+
+/** 1 + c₁B^s + c₂B^{2s} + … sebagai polinomial padat. */
+function seasonalPoly(c: number[], s: number): number[] {
+  const out = new Array<number>(c.length * s + 1).fill(0);
+  out[0] = 1;
+  c.forEach((v, j) => (out[(j + 1) * s] = v));
+  return out;
+}
+
+/** AR multiplikatif φ(B)Φ(B^s) dalam bentuk y_t = Σ a_k y_{t−k} + …  (panjang p + sP). */
+export function expandAr(phi: number[], Phi: number[] = [], s = 0): number[] {
+  if (!Phi.length || s < 2) return phi.slice();
+  const a = polyMul([1, ...phi.map((v) => -v)], seasonalPoly(Phi.map((v) => -v), s));
+  return a.slice(1).map((v) => -v);
+}
+
+/** MA multiplikatif θ(B)Θ(B^s) dalam bentuk … + e_t + Σ m_k e_{t−k}  (panjang q + sQ). */
+export function expandMa(theta: number[], Theta: number[] = [], s = 0): number[] {
+  if (!Theta.length || s < 2) return theta.slice();
+  return polyMul([1, ...theta], seasonalPoly(Theta, s)).slice(1);
+}
 
 export type ArimaModel = ArimaOrder & {
   phi: number[];
@@ -432,7 +557,46 @@ export type ArimaModel = ArimaOrder & {
   residuals: number[];
   /** Garis tren OLS (hanya model tren deterministik). */
   trendLine?: { intercept: number; slope: number };
+  /** Koefisien AR & MA musiman (Φ, Θ); kosong untuk model non-musiman. */
+  Phi: number[];
+  Theta: number[];
 };
+
+/**
+ * Jumlah kuadrat residual CSS — versi cepat untuk fungsi objektif optimizer:
+ * hanya lag dengan koefisien ≠ 0 yang diiterasi (polinomial musiman yang
+ * diekspansi kebanyakan nol) dan buffer residual dipakai ulang.
+ */
+export function cssSumSquares(
+  w: number[],
+  ar: number[],
+  ma: number[],
+  mu: number,
+  start: number,
+  buf: Float64Array,
+): number {
+  const arLag: number[] = [];
+  const arVal: number[] = [];
+  for (let i = 0; i < ar.length; i++) if (ar[i] !== 0) (arLag.push(i + 1), arVal.push(ar[i]));
+  const maLag: number[] = [];
+  const maVal: number[] = [];
+  for (let j = 0; j < ma.length; j++) if (ma[j] !== 0) (maLag.push(j + 1), maVal.push(ma[j]));
+  const n = w.length;
+  let ss = 0;
+  for (let t = 0; t < start && t < n; t++) buf[t] = 0;
+  for (let t = start; t < n; t++) {
+    let pred = mu;
+    for (let k = 0; k < arLag.length; k++) pred += arVal[k] * (w[t - arLag[k]] - mu);
+    for (let k = 0; k < maLag.length; k++) {
+      const idx = t - maLag[k];
+      if (idx >= 0) pred += maVal[k] * buf[idx];
+    }
+    const e = w[t] - pred;
+    buf[t] = e;
+    ss += e * e;
+  }
+  return ss;
+}
 
 /** Residual CSS: e_t = w_t − ŵ_t, dengan e_t = 0 untuk t < start. */
 export function cssResiduals(w: number[], phi: number[], theta: number[], mu: number, start: number): number[] {
@@ -454,48 +618,60 @@ export function cssResiduals(w: number[], phi: number[], theta: number[], mu: nu
  */
 export function fitArima(y: number[], order: ArimaOrder, start = order.p): ArimaModel | null {
   const { p, d, q } = order;
-  const trend = !!order.trend && d === 0;
+  const s = order.s && order.s > 1 ? order.s : 0;
+  const P = s ? (order.P ?? 0) : 0;
+  const D = s ? (order.D ?? 0) : 0;
+  const Q = s ? (order.Q ?? 0) : 0;
+  const trend = !!order.trend && d === 0 && D === 0;
   const constant = order.constant && !trend; // intercept sudah ada di garis tren
   // Tren deterministik: estimasi dua tahap — garis OLS dulu, lalu ARMA pada sisaannya.
   const trendLine = trend ? linearTrend(y) : undefined;
-  const w = trendLine ? y.map((v, t) => v - trendLine.intercept - trendLine.slope * t) : difference(y, d);
-  const m = Math.max(start, p);
+  const w = trendLine
+    ? y.map((v, t) => v - trendLine.intercept - trendLine.slope * t)
+    : differenceAll(y, d, D, s);
+  const m = Math.max(start, p + s * P);
   const nEff = w.length - m;
-  const nOpt = p + q + (constant ? 1 : 0); // parameter yang dioptimasi Nelder-Mead
+  const nOpt = p + q + P + Q + (constant ? 1 : 0); // parameter yang dioptimasi Nelder-Mead
   const nPar = nOpt + (trend ? 2 : 0);
   if (nEff < nPar + 3) return null;
 
   const wm = mean(w);
   const scale = sd(w) || 1;
 
+  // Urutan parameter: φ (p), θ (q), Φ (P), Θ (Q), μ.
   const decode = (x: number[]) => {
     const phi = toStationary(x.slice(0, p));
     const theta = toStationary(x.slice(p, p + q)).map((v) => -v);
-    const mu = constant ? wm + x[p + q] * scale : 0;
-    return { phi, theta, mu };
+    const Phi = toStationary(x.slice(p + q, p + q + P));
+    const Theta = toStationary(x.slice(p + q + P, p + q + P + Q)).map((v) => -v);
+    const mu = constant ? wm + x[p + q + P + Q] * scale : 0;
+    return { phi, theta, Phi, Theta, mu };
   };
+  const buf = new Float64Array(w.length);
   const ss = (x: number[]) => {
-    const { phi, theta, mu } = decode(x);
-    let s = 0;
-    for (const e of cssResiduals(w, phi, theta, mu, m)) s += e * e;
-    return s;
+    const { phi, theta, Phi, Theta, mu } = decode(x);
+    return cssSumSquares(w, expandAr(phi, Phi, s), expandMa(theta, Theta, s), mu, m, buf);
   };
 
   let params: number[] = [];
-  if (p + q === 0) {
+  if (p + q + P + Q === 0) {
     // Tanpa AR/MA: optimum CSS untuk μ = rata-rata sampel efektif (bentuk tertutup).
     if (constant) params = [(mean(w.slice(m)) - wm) / scale];
   } else {
     // Beberapa titik awal — permukaan CSS model campuran ARMA bisa punya
     // minimum lokal. (1) Hannan-Rissanen, (2) Yule-Walker AR + MA = 0, (3) nol.
+    // Bagian musiman diawali dari ACF lag s (AR) / 0 (MA).
     const c0 = constant ? [0] : [];
+    const r_s = s && w.length > s + 2 ? Math.max(-0.9, Math.min(0.9, acf(w, s)[s - 1])) : 0;
+    const seasonal0 = [...(P ? fromStationary([r_s, ...new Array<number>(P - 1).fill(0)]) : []), ...new Array<number>(Q).fill(0)];
     const starts: number[][] = [];
     const hr = hannanRissanen(w, p, q);
-    if (hr) starts.push([...fromStationary(hr.phi), ...fromStationary(hr.theta.map((v) => -v)), ...c0]);
+    if (hr) starts.push([...fromStationary(hr.phi), ...fromStationary(hr.theta.map((v) => -v)), ...seasonal0, ...c0]);
     if (p > 0) {
       const yw = durbinLevinson(acf(w, p)).phi;
-      if (isStationary(yw)) starts.push([...fromStationary(yw), ...new Array<number>(q).fill(0), ...c0]);
+      if (isStationary(yw)) starts.push([...fromStationary(yw), ...new Array<number>(q).fill(0), ...seasonal0, ...c0]);
     }
+    if (P + Q > 0) starts.push([...new Array<number>(p + q).fill(0), ...seasonal0, ...c0]);
     starts.push(new Array<number>(nOpt).fill(0));
 
     let res = { x: starts[0], fx: Infinity, iterations: 0 };
@@ -513,8 +689,8 @@ export function fitArima(y: number[], order: ArimaOrder, start = order.p): Arima
     params = res.x;
   }
 
-  const { phi, theta, mu } = decode(params);
-  const residuals = cssResiduals(w, phi, theta, mu, m);
+  const { phi, theta, Phi, Theta, mu } = decode(params);
+  const residuals = cssResiduals(w, expandAr(phi, Phi, s), expandMa(theta, Theta, s), mu, m);
   let sse = 0;
   for (const e of residuals) sse += e * e;
   const sigma2 = sse / nEff;
@@ -525,10 +701,13 @@ export function fitArima(y: number[], order: ArimaOrder, start = order.p): Arima
   const bic = -2 * loglik + k * Math.log(nEff);
   return {
     ...order,
+    ...(s ? { P, D, Q, s } : { P: undefined, D: undefined, Q: undefined, s: undefined }),
     constant,
     trend,
     phi,
     theta,
+    Phi,
+    Theta,
     mu,
     sigma2,
     loglik,
@@ -547,24 +726,20 @@ export function fitArima(y: number[], order: ArimaOrder, start = order.p): Arima
 // PERAMALAN
 // ============================================================
 
-/** Koefisien AR model penuh φ*(B) = φ(B)(1−B)^d, dalam bentuk y_t = Σ φ*_i y_{t−i} + … */
-export function integratedAr(phi: number[], d: number): number[] {
-  // Polinomial a(B) = 1 − Σ φ_i B^i, dikali (1 − B) sebanyak d kali.
+/**
+ * Koefisien AR model penuh φ*(B) = φ(B)(1−B)^d(1−B^s)^D, dalam bentuk
+ * y_t = Σ φ*_i y_{t−i} + …  (phi boleh berupa AR multiplikatif yang sudah diekspansi).
+ */
+export function integratedAr(phi: number[], d: number, D = 0, s = 0): number[] {
   let a = [1, ...phi.map((v) => -v)];
-  for (let k = 0; k < d; k++) {
-    const next = new Array<number>(a.length + 1).fill(0);
-    for (let i = 0; i < a.length; i++) {
-      next[i] += a[i];
-      next[i + 1] -= a[i];
-    }
-    a = next;
-  }
+  for (let k = 0; k < d; k++) a = polyMul(a, [1, -1]);
+  if (s > 1) for (let k = 0; k < D; k++) a = polyMul(a, seasonalPoly([-1], s));
   return a.slice(1).map((v) => -v);
 }
 
-/** Bobot ψ_0..ψ_{h−1} representasi MA(∞) model penuh. */
-export function psiWeights(phi: number[], theta: number[], d: number, h: number): number[] {
-  const ar = integratedAr(phi, d);
+/** Bobot ψ_0..ψ_{h−1} representasi MA(∞) model penuh (phi/theta = bentuk terekspansi). */
+export function psiWeights(phi: number[], theta: number[], d: number, h: number, D = 0, s = 0): number[] {
+  const ar = integratedAr(phi, d, D, s);
   const psi = [1];
   for (let j = 1; j < h; j++) {
     let v = j <= theta.length ? theta[j - 1] : 0;
@@ -580,32 +755,53 @@ export type ArimaForecast = { mean: number[]; lower: number[]; upper: number[]; 
 export const Z95 = 1.959963984540054;
 
 export function forecastArima(y: number[], model: ArimaModel, h: number, z = Z95): ArimaForecast {
-  const { d, phi, theta, mu, trendLine } = model;
+  const { d, mu, trendLine } = model;
+  const s = model.s && model.s > 1 ? model.s : 0;
+  const D = s ? (model.D ?? 0) : 0;
+  const ar = expandAr(model.phi, model.Phi ?? [], s);
+  const ma = expandMa(model.theta, model.Theta ?? [], s);
   const line = (t: number) => (trendLine ? trendLine.intercept + trendLine.slope * t : 0);
-  const w = trendLine ? y.map((v, t) => v - line(t)) : difference(y, d);
+  const w = trendLine ? y.map((v, t) => v - line(t)) : differenceAll(y, d, D, s);
   const n = w.length;
   const e = new Array<number>(n).fill(0);
   model.residuals.forEach((v, i) => (e[model.start + i] = v));
 
   const wExt = w.slice();
-  for (let s = 0; s < h; s++) {
-    const t = n + s;
+  for (let k = 0; k < h; k++) {
+    const t = n + k;
     let pred = mu;
-    for (let i = 0; i < phi.length; i++) pred += phi[i] * (wExt[t - 1 - i] - mu);
-    for (let j = 0; j < theta.length; j++) if (t - 1 - j < n) pred += theta[j] * e[t - 1 - j];
+    for (let i = 0; i < ar.length; i++) pred += ar[i] * (wExt[t - 1 - i] - mu);
+    for (let j = 0; j < ma.length; j++) if (t - 1 - j < n) pred += ma[j] * e[t - 1 - j];
     wExt.push(pred);
   }
 
-  // Integrasi balik: tiap tingkat differencing dijumlah kumulatif dari nilai terakhirnya.
+  // Integrasi balik, operator demi operator (urutan kebalikan dari differenceAll):
+  // tingkat k di masa depan = tingkat k+1 + nilai tingkat k "lag" periode sebelumnya
+  // (lag 1 untuk difference biasa, lag s untuk difference musiman).
   let f = wExt.slice(n);
-  for (let k = d - 1; k >= 0; k--) {
-    const level = difference(y, k);
-    let last = level[level.length - 1];
-    f = f.map((v) => (last += v));
+  if (!trendLine) {
+    const lags = [...new Array<number>(D).fill(s), ...new Array<number>(d).fill(1)];
+    const levels = [y];
+    for (const lag of lags) {
+      const prev = levels[levels.length - 1];
+      levels.push(lag === 1 ? difference(prev, 1) : seasonalDifference(prev, lag, 1));
+    }
+    for (let k = lags.length - 1; k >= 0; k--) {
+      const base = levels[k];
+      const lag = lags[k];
+      const up = f;
+      const out: number[] = [];
+      for (let j = 0; j < up.length; j++) {
+        const idx = base.length + j - lag;
+        out.push(up[j] + (idx < base.length ? base[idx] : out[idx - base.length]));
+      }
+      f = out;
+    }
+  } else {
+    f = f.map((v, i) => v + line(y.length + i));
   }
-  if (trendLine) f = f.map((v, i) => v + line(y.length + i));
 
-  const psi = psiWeights(phi, theta, d, h);
+  const psi = psiWeights(ar, ma, trendLine ? 0 : d, h, trendLine ? 0 : D, s);
   // Model tren: tambahkan ketidakpastian garis OLS di t* — s²(1/n + (t*−t̄)²/Sxx).
   let lineVar = (_t: number) => 0;
   if (trendLine) {
@@ -706,10 +902,19 @@ export function minRootModulus(c: number[]): number {
 /** Batas auto.arima: akar dengan |z| < 1,01 dianggap terlalu dekat lingkaran satuan. */
 export const MIN_ROOT_MODULUS = 1.01;
 
-export function rootsOk(m: Pick<ArimaModel, "phi" | "theta">): { ar: boolean; ma: boolean } {
+/**
+ * Cek akar polinomial AR & MA model penuh. Akar Φ(B^s) = akar pangkat-s dari
+ * akar Φ(z), jadi modulusnya |r|^{1/s} — lebih dekat ke 1 daripada akar Φ sendiri
+ * (sama dengan memeriksa polinomial terekspansi seperti auto.arima).
+ */
+export function rootsOk(
+  m: Pick<ArimaModel, "phi" | "theta"> & Partial<Pick<ArimaModel, "Phi" | "Theta" | "s">>,
+): { ar: boolean; ma: boolean } {
+  const s = m.s && m.s > 1 ? m.s : 1;
+  const seasonalMin = (c: number[]) => (c.length ? Math.pow(minRootModulus(c), 1 / s) : Infinity);
   return {
-    ar: minRootModulus(m.phi.map((v) => -v)) >= MIN_ROOT_MODULUS,
-    ma: minRootModulus(m.theta) >= MIN_ROOT_MODULUS,
+    ar: Math.min(minRootModulus(m.phi.map((v) => -v)), seasonalMin((m.Phi ?? []).map((v) => -v))) >= MIN_ROOT_MODULUS,
+    ma: Math.min(minRootModulus(m.theta), seasonalMin(m.Theta ?? [])) >= MIN_ROOT_MODULUS,
   };
 }
 
@@ -723,59 +928,141 @@ export const ARIMA_LIMITS = {
   /** p + q maksimum — model sederhana lebih stabil untuk deret pendek. */
   maxPQ: 4,
   maxD: 2,
+  /** Saat bagian musiman ikut dicari, p & q dibatasi 2 supaya grid tetap cepat di browser. */
+  maxPQSeasonal: 2,
+  /** P & Q musiman maksimum. */
+  maxSeasonalOrder: 1,
+  /** Periode musiman terpanjang yang dimodelkan (52 minggu terlalu panjang untuk CSS). */
+  maxSeasonalPeriod: 24,
 };
+
+type CandidateOrder = Pick<ArimaOrder, "p" | "d" | "q" | "constant" | "trend" | "P" | "D" | "Q" | "s">;
 
 export type AutoArimaResult = {
   model: ArimaModel;
   differencing: Differencing;
   /** Kandidat yang lolos cek akar, urut AICc naik. */
-  candidates: { p: number; d: number; q: number; constant: boolean; trend?: boolean; aicc: number }[];
+  candidates: (CandidateOrder & { aicc: number })[];
   /**
    * Kandidat yang ditolak karena akar AR/MA terlalu dekat lingkaran satuan.
-   * `overDifferenced` = akar MA tepat di z = 1 (θ(1) ≈ 0) setelah differencing:
-   * faktor MA "membatalkan" (1 − B) — gejala klasik over-differencing.
+   * `overDifferenced` = akar MA tepat di z = 1 (θ(1) ≈ 0 atau Θ(1) ≈ 0) setelah
+   * differencing: faktor MA "membatalkan" (1 − B) / (1 − B^s) — gejala klasik
+   * over-differencing.
    */
-  rejected: { p: number; d: number; q: number; constant: boolean; aicc: number; reason: "ar" | "ma"; overDifferenced: boolean }[];
+  rejected: (CandidateOrder & { aicc: number; reason: "ar" | "ma"; overDifferenced: boolean })[];
 };
 
-export function autoArima(y: number[], opts: { maxP?: number; maxQ?: number } = {}): AutoArimaResult | null {
-  const differencing = chooseDifferencing(y, ARIMA_LIMITS.maxD);
-  const { d } = differencing;
-  const nW = y.length - d;
+/**
+ * Auto ARIMA / SARIMA. `s` = periode musiman kandidat (12 bulanan, 4 kuartalan,
+ * 7 harian, 5 hari kerja). Bagian musiman (P, Q ≤ 1) hanya dicari kalau ada
+ * bukti musiman: difference musiman dipakai (F_s > 0,64) atau ACF deret
+ * stasioner di lag s signifikan.
+ */
+export function autoArima(
+  y: number[],
+  opts: { maxP?: number; maxQ?: number; s?: number | null } = {},
+): AutoArimaResult | null {
+  const sCand = opts.s && opts.s >= 2 && opts.s <= ARIMA_LIMITS.maxSeasonalPeriod ? opts.s : null;
+  const differencing = chooseDifferencing(y, ARIMA_LIMITS.maxD, sCand);
+  const { d, D, trend } = differencing;
+  const s = differencing.s ?? 0;
+  const tl = trend ? linearTrend(y) : null;
+  const w = tl ? y.map((v, t) => v - tl.intercept - tl.slope * t) : differenceAll(y, d, D, s);
+  const seasonalSearch =
+    s > 0 && (D > 0 || (w.length > s + 2 && Math.abs(acf(w, s)[s - 1]) > 1.96 / Math.sqrt(w.length)));
+  const maxPs = seasonalSearch ? ARIMA_LIMITS.maxSeasonalOrder : 0;
+
+  const nW = y.length - d - D * s;
   // Deret pendek → batasi orde supaya parameter tidak lebih banyak dari data.
-  const cap = Math.max(1, Math.min(ARIMA_LIMITS.maxP, Math.floor(nW / 10)));
+  const cap = Math.max(1, Math.min(seasonalSearch ? ARIMA_LIMITS.maxPQSeasonal : ARIMA_LIMITS.maxP, Math.floor(nW / 10)));
   const maxP = Math.min(opts.maxP ?? ARIMA_LIMITS.maxP, cap);
   const maxQ = Math.min(opts.maxQ ?? ARIMA_LIMITS.maxQ, cap);
-  const trend = differencing.trend;
+  // Konstanta: rata-rata kalau d + D = 0, drift opsional kalau d + D = 1, tidak ada kalau 2.
   // Tren deterministik: intercept & slope sudah di garis tren → tanpa konstanta tambahan.
-  const constants = trend ? [false] : d === 0 ? [true] : d === 1 ? [true, false] : [false];
+  const constants = trend ? [false] : d + D === 0 ? [true] : d + D === 1 ? [true, false] : [false];
+  // Kondisi awal sama untuk semua kandidat supaya AICc sebanding.
+  const start = maxP + s * maxPs;
 
   const fitted: ArimaModel[] = [];
   const rejected: AutoArimaResult["rejected"] = [];
-  for (let p = 0; p <= maxP; p++) {
-    for (let q = 0; q <= maxQ; q++) {
-      if (p + q > ARIMA_LIMITS.maxPQ) continue;
-      for (const constant of constants) {
-        const m = fitArima(y, { p, d, q, constant, trend }, maxP);
-        if (!m || !Number.isFinite(m.aicc)) continue;
+  type Spec = { p: number; q: number; P: number; Q: number; constant: boolean };
+  const seen = new Map<string, ArimaModel | null>(); // null = gagal / ditolak
+  const tryFit = (sp: Spec): ArimaModel | null => {
+    const key = `${sp.p},${sp.q},${sp.P},${sp.Q},${sp.constant}`;
+    if (seen.has(key)) return seen.get(key)!;
+    let accepted: ArimaModel | null = null;
+    const inRange =
+      sp.p >= 0 && sp.q >= 0 && sp.p <= maxP && sp.q <= maxQ && sp.p + sp.q <= ARIMA_LIMITS.maxPQ &&
+      sp.P >= 0 && sp.Q >= 0 && sp.P <= maxPs && sp.Q <= maxPs && constants.includes(sp.constant);
+    if (inRange) {
+      const seasonal = s > 0 && sp.P + sp.Q + D > 0;
+      const order: ArimaOrder = seasonal
+        ? { p: sp.p, d, q: sp.q, constant: sp.constant, trend, P: sp.P, D, Q: sp.Q, s }
+        : { p: sp.p, d, q: sp.q, constant: sp.constant, trend };
+      const m = fitArima(y, order, start);
+      if (m && Number.isFinite(m.aicc)) {
         // Seperti auto.arima: tolak model dengan akar |z| < 1,01 — estimasi di
         // batas (AR hampir unit root / MA hampir tidak invertibel) tidak stabil
         // dan sering berupa akar AR & MA yang saling meniadakan.
         const ok = rootsOk(m);
-        if (ok.ar && ok.ma) fitted.push(m);
-        else {
+        if (ok.ar && ok.ma) {
+          fitted.push(m);
+          accepted = m;
+        } else {
           const theta1 = 1 + m.theta.reduce((a, v) => a + v, 0);
+          const Theta1 = 1 + m.Theta.reduce((a, v) => a + v, 0);
           rejected.push({
-            p,
-            d,
-            q,
-            constant,
+            ...pickOrder(m),
             aicc: m.aicc,
             reason: ok.ar ? "ma" : "ar",
-            overDifferenced: !ok.ma && d >= 1 && Math.abs(theta1) < 0.05,
+            overDifferenced:
+              !ok.ma &&
+              ((d >= 1 && m.theta.length > 0 && Math.abs(theta1) < 0.05) ||
+                (D >= 1 && m.Theta.length > 0 && Math.abs(Theta1) < 0.05)),
           });
         }
       }
+    }
+    seen.set(key, accepted);
+    return accepted;
+  };
+
+  if (!seasonalSearch) {
+    // Non-musiman: grid lengkap (paling banyak 14 orde × 2 konstanta — murah).
+    for (let p = 0; p <= maxP; p++)
+      for (let q = 0; q <= maxQ; q++) for (const constant of constants) tryFit({ p, q, P: 0, Q: 0, constant });
+  } else {
+    // Musiman: pencarian stepwise Hyndman-Khandakar (seperti auto.arima) —
+    // grid lengkap SARIMA terlalu lambat untuk dijalankan di browser.
+    const c0 = constants[0];
+    const initial: Spec[] = [
+      { p: Math.min(2, maxP), q: Math.min(2, maxQ), P: maxPs, Q: maxPs, constant: c0 },
+      { p: 0, q: 0, P: 0, Q: 0, constant: c0 },
+      { p: Math.min(1, maxP), q: 0, P: maxPs, Q: 0, constant: c0 },
+      { p: 0, q: Math.min(1, maxQ), P: 0, Q: maxPs, constant: c0 },
+    ];
+    let best: { spec: Spec; aicc: number } | null = null;
+    for (const sp of initial) {
+      const m = tryFit(sp);
+      if (m && (!best || m.aicc < best.aicc)) best = { spec: sp, aicc: m.aicc };
+    }
+    for (let step = 0; best && step < 50; step++) {
+      const b = best.spec;
+      const neighbours: Spec[] = [];
+      for (const dp of [-1, 1]) {
+        neighbours.push({ ...b, p: b.p + dp }, { ...b, q: b.q + dp }, { ...b, P: b.P + dp }, { ...b, Q: b.Q + dp });
+        neighbours.push({ ...b, p: b.p + dp, q: b.q + dp }, { ...b, P: b.P + dp, Q: b.Q + dp });
+      }
+      for (const c of constants) if (c !== b.constant) neighbours.push({ ...b, constant: c });
+      let improved = false;
+      for (const sp of neighbours) {
+        const m = tryFit(sp);
+        if (m && m.aicc < best.aicc - 1e-9) {
+          best = { spec: sp, aicc: m.aicc };
+          improved = true;
+        }
+      }
+      if (!improved) break;
     }
   }
   if (fitted.length === 0) return null;
@@ -784,15 +1071,24 @@ export function autoArima(y: number[], opts: { maxP?: number; maxQ?: number } = 
   return {
     model: fitted[0],
     differencing,
-    candidates: fitted.map(({ p, d: dd, q, constant, trend: tr, aicc }) => ({ p, d: dd, q, constant, trend: tr, aicc })),
+    candidates: fitted.map((m) => ({ ...pickOrder(m), aicc: m.aicc })),
     rejected,
   };
 }
 
-/** "ARIMA(1,1,0) dengan drift" */
+function pickOrder(m: ArimaModel): CandidateOrder {
+  const { p, d, q, constant, trend, P, D, Q, s } = m;
+  return isSeasonal(m) ? { p, d, q, constant, trend, P, D, Q, s } : { p, d, q, constant, trend };
+}
+
+/** "ARIMA(1,1,0) dengan drift", "SARIMA(1,0,0)(0,1,1)[12] dengan drift" */
 export function arimaLabel(o: ArimaOrder): string {
-  const base = `ARIMA(${o.p},${o.d},${o.q})`;
+  const seasonal = isSeasonal(o);
+  const base = seasonal
+    ? `SARIMA(${o.p},${o.d},${o.q})(${o.P ?? 0},${o.D ?? 0},${o.Q ?? 0})[${o.s}]`
+    : `ARIMA(${o.p},${o.d},${o.q})`;
   if (o.trend) return `${base} + tren linear`;
   if (!o.constant) return base;
-  return o.d === 0 ? `${base} dengan rata-rata` : `${base} dengan drift`;
+  const diffs = o.d + (seasonal ? (o.D ?? 0) : 0);
+  return diffs === 0 ? `${base} dengan rata-rata` : `${base} dengan drift`;
 }

@@ -25,7 +25,7 @@ import autoTable from "jspdf-autotable";
 import { EngineResult } from "@/lib/engine";
 import { kmoLabel } from "@/lib/engine/multivariate";
 import { compactNumber, formatByType, formatP } from "@/lib/engine/stats";
-import { arimaEquation, identificationText, kpssStepLabel, mapeLabel } from "@/lib/engine/forecast";
+import { arimaEquation, identificationText, kpssStepLabel, mapeLabel, methodLabel } from "@/lib/engine/forecast";
 import { SITE_HOST } from "@/lib/site";
 
 // ============================================================
@@ -1415,7 +1415,7 @@ function buildForecast(p: Paper, result: EngineResult) {
   p.newPage();
   p.section(
     "Peramalan ARIMA",
-    "Metode Box-Jenkins: identifikasi (uji KPSS, ACF/PACF), estimasi (conditional sum of squares, AICc), diagnostik (Ljung-Box), dan evaluasi holdout terhadap metode naif & regresi linear.",
+    "Metode Box-Jenkins (SARIMA bila datanya musiman): identifikasi (uji KPSS, kekuatan musiman, ACF/PACF), estimasi (conditional sum of squares, AICc), diagnostik (Ljung-Box), dan evaluasi holdout terhadap metode naif, naif musiman & regresi linear.",
   );
 
   fc.items.forEach((f, idx) => {
@@ -1443,7 +1443,7 @@ function buildForecast(p: Paper, result: EngineResult) {
         label: "1. Identifikasi",
         value: `KPSS ${f.identification.kpss
           .map((k) => `${kpssStepLabel(k)} ${k.stat.toFixed(3)} (${k.stationary ? "stasioner" : "belum stasioner"})`)
-          .join("; ")}. ${identificationText(f.model)}`,
+          .join("; ")}. ${identificationText(f.model, f.identification.season)}`,
       },
       { label: "2. Estimasi", value: `${arimaEquation(f.model, true)}; sigma^2 = ${compactNumber(f.model.sigma2)}, AICc = ${f.model.aicc.toFixed(1)}.` },
       {
@@ -1457,9 +1457,9 @@ function buildForecast(p: Paper, result: EngineResult) {
       {
         label: "4. Evaluasi",
         value: ho
-          ? `${ho.h} periode terakhir: RMSE ARIMA ${fmt(ho.arima.rmse)}, naif ${fmt(ho.naive.rmse)}, linear ${fmt(ho.linear.rmse)}${
-              ho.arima.mape !== null ? `; MAPE ARIMA ${ho.arima.mape.toFixed(1)}% (${mapeLabel(ho.arima.mape)})` : ""
-            } -- terbaik: ${ho.best === "arima" ? "ARIMA" : ho.best === "naive" ? "naif" : "regresi linear"}.`
+          ? `${ho.h} periode terakhir: RMSE ${ho.model.split("(")[0]} ${fmt(ho.arima.rmse)}${ho.seasonalNaive ? `, naif musiman ${fmt(ho.seasonalNaive.rmse)}` : ""}, naif ${fmt(ho.naive.rmse)}, linear ${fmt(ho.linear.rmse)}${
+              ho.arima.mape !== null ? `; MAPE ${ho.model.split("(")[0]} ${ho.arima.mape.toFixed(1)}% (${mapeLabel(ho.arima.mape)})` : ""
+            } -- terbaik: ${methodLabel(ho.best, ho.model.split("(")[0])}.`
           : "deret terlalu pendek untuk evaluasi holdout.",
       },
     ]);

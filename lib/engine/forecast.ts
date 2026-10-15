@@ -19,12 +19,14 @@ import { ColProfile } from "./profile";
 import { Analysis, aggregationFor, resolveTimeX, TimeAxis } from "./analyze";
 import {
   acf,
+  ARIMA_LIMITS,
   ArimaModel,
   arimaLabel,
   autoArima,
-  difference,
+  differenceAll,
   DifferencingStep,
   forecastArima,
+  isSeasonal,
   ljungBox,
   LjungBox,
   pacf,
@@ -34,6 +36,13 @@ import { compactNumber, linreg } from "./stats";
 export type Granularity = "hari" | "hari kerja" | "minggu" | "bulan" | "kuartal" | "tahun" | "periode";
 
 export type ForecastError = { rmse: number; mae: number; mape: number | null };
+
+export type ForecastMethod = "arima" | "naive" | "snaive" | "linear";
+
+/** Nama metode pembanding untuk teks. */
+export function methodLabel(m: ForecastMethod, model = "ARIMA"): string {
+  return m === "arima" ? model : m === "naive" ? "naif (nilai terakhir)" : m === "snaive" ? "naif musiman (nilai musim lalu)" : "regresi linear";
+}
 
 export type ForecastResult = {
   column: string;
@@ -58,10 +67,19 @@ export type ForecastResult = {
     nEff: number;
     /** Garis tren OLS untuk model tren deterministik; null = tidak ada. Opsional: snapshot lama tidak punya. */
     trendLine?: { intercept: number; slope: number } | null;
+    /** Bagian musiman (P, D, Q)_s & koefisien Φ, Θ. Opsional: snapshot lama / model non-musiman tidak punya. */
+    P?: number;
+    D?: number;
+    Q?: number;
+    s?: number;
+    Phi?: number[];
+    Theta?: number[];
   };
   identification: {
     /** Langkah uji KPSS: level per orde differencing, plus uji tren di deret asli. */
     kpss: DifferencingStep[];
+    /** Periode musiman kandidat & kekuatan musiman F_s (null = tidak dihitung). Opsional untuk snapshot lama. */
+    season?: { period: number; strength: number | null; differenced: boolean } | null;
     /** ACF & PACF deret yang dimodelkan ARMA (setelah difference / detrend; index 0 = lag 1). */
     acf: number[];
     pacf: number[];
@@ -83,8 +101,10 @@ export type ForecastResult = {
     model: string;
     arima: ForecastError;
     naive: ForecastError;
+    /** Naif musiman: nilai periode yang sama satu musim sebelumnya (hanya data musiman). */
+    seasonalNaive?: ForecastError | null;
     linear: ForecastError;
-    best: "arima" | "naive" | "linear";
+    best: ForecastMethod;
   } | null;
   seasonality: { period: number; acf: number; significant: boolean } | null;
   notes: string[];
@@ -389,46 +409,75 @@ export function regularize(
 // PERSAMAAN MODEL
 // ============================================================
 
-const SUP: Record<number, string> = { 2: "²", 3: "³", 4: "⁴" };
+const SUP_DIGITS = ["⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹"];
+const superscript = (k: number) =>
+  String(k)
+    .split("")
+    .map((ch) => SUP_DIGITS[Number(ch)])
+    .join("");
 
 /**
- * Bentuk operator backshift: φ(B)(1−B)^d yₜ = c + θ(B) eₜ, dengan c = μ(1 − Σφ).
+ * Bentuk operator backshift:
+ *   φ(B)Φ(B^s)(1−B)^d(1−B^s)^D yₜ = c + θ(B)Θ(B^s) eₜ, dengan c = μ(1 − Σφ)(1 − ΣΦ).
  * `ascii` untuk PDF (font bawaan jsPDF tidak punya −, ², ₜ).
  */
 export function arimaEquation(m: ForecastResult["model"], ascii = false): string {
   const minus = ascii ? "-" : "−";
-  const pow = (k: number) => (k === 1 ? "" : ascii ? `^${k}` : (SUP[k] ?? `^${k}`));
+  const pow = (k: number) => (k === 1 ? "" : ascii ? `^${k}` : superscript(k));
   const sub = ascii ? "_t" : "ₜ";
   const coef = (v: number) => Math.abs(v).toFixed(3);
-  const ar = m.phi.map((v, i) => `${v >= 0 ? minus : "+"} ${coef(v)}B${pow(i + 1)}`).join(" ");
-  const ma = m.theta.map((v, i) => `${v >= 0 ? "+" : minus} ${coef(v)}B${pow(i + 1)}`).join(" ");
-  const diff = m.d === 0 ? "" : `(1 ${minus} B)${pow(m.d)}`;
+  const s = m.s ?? 0;
+  const factor = (c: number[], lag: number, arSign: boolean) =>
+    c.length
+      ? `(1 ${c.map((v, i) => `${(v >= 0) === arSign ? minus : "+"} ${coef(v)}B${pow((i + 1) * lag)}`).join(" ")})`
+      : "";
+  const ar = factor(m.phi, 1, true) + factor(m.Phi ?? [], s, true);
+  const ma = factor(m.theta, 1, false) + factor(m.Theta ?? [], s, false);
+  const diff =
+    (m.d === 0 ? "" : `(1 ${minus} B)${pow(m.d)}`) +
+    (s && (m.D ?? 0) > 0 ? `(1 ${minus} B${pow(s)})${(m.D ?? 0) > 1 ? pow(m.D!) : ""}` : "");
   if (m.trendLine) {
     // Tren deterministik: y = a + b·t + N, dengan N mengikuti ARMA.
     const { intercept, slope } = m.trendLine;
     const sign = slope >= 0 ? "+" : minus;
     const times = ascii ? "*" : "·";
-    const arma = `${ar ? `(1 ${ar})` : ""}N${sub} = ${ma ? `(1 ${ma})` : ""}e${sub}`;
+    const arma = `${ar}N${sub} = ${ma}e${sub}`;
     return `y${sub} = ${compactNumber(intercept)} ${sign} ${compactNumber(Math.abs(slope))}${times}t + N${sub};  ${arma}`;
   }
-  const c = m.mu * (1 - m.phi.reduce((a, v) => a + v, 0));
-  const left = `${ar ? `(1 ${ar})` : ""}${diff}y${sub}`;
-  const right = `${m.constant ? `${compactNumber(c)} + ` : ""}${ma ? `(1 ${ma})` : ""}e${sub}`;
-  return `${left} = ${right}`;
+  const c =
+    m.mu * (1 - m.phi.reduce((a, v) => a + v, 0)) * (1 - (m.Phi ?? []).reduce((a, v) => a + v, 0));
+  const right = `${m.constant ? `${compactNumber(c)} + ` : ""}${ma}e${sub}`;
+  return `${ar}${diff}y${sub} = ${right}`;
 }
 
 /** Label baris uji KPSS untuk tabel identifikasi. */
 export function kpssStepLabel(k: DifferencingStep): string {
   if (k.test === "trend") return "asli, di sekitar tren";
+  if (k.D) return k.d === 0 ? "difference musiman" : `difference musiman + ke-${k.d}`;
   return k.d === 0 ? "asli" : `difference ke-${k.d}`;
 }
 
 /** Kesimpulan tahap identifikasi dalam satu kalimat. */
-export function identificationText(m: ForecastResult["model"]): string {
-  if (m.trendLine) {
-    return "Deret stasioner di sekitar tren linear (tren deterministik) → tidak di-difference; tren dimodelkan sebagai garis + ARMA.";
+export function identificationText(
+  m: ForecastResult["model"],
+  season?: ForecastResult["identification"]["season"],
+): string {
+  const parts: string[] = [];
+  if (season && season.strength !== null) {
+    const fs = season.strength.toFixed(2);
+    parts.push(
+      season.differenced
+        ? `Kekuatan musiman F_s = ${fs} > 0,64 → difference musiman lag ${season.period} (D = 1).`
+        : `Kekuatan musiman F_s = ${fs} ≤ 0,64 → tanpa difference musiman.`,
+    );
   }
-  return m.d === 0 ? "Deret asli sudah stasioner → d = 0." : `Deret stasioner setelah ${m.d}× difference → d = ${m.d}.`;
+  if (m.trendLine) {
+    parts.push("Deret stasioner di sekitar tren linear (tren deterministik) → tidak di-difference; tren dimodelkan sebagai garis + ARMA.");
+  } else {
+    const after = m.D ? "difference musiman" : "deret asli";
+    parts.push(m.d === 0 ? `Setelah ${after}, deret sudah stasioner → d = 0.` : `Deret stasioner setelah ${m.d}× difference biasa → d = ${m.d}.`);
+  }
+  return parts.join(" ");
 }
 
 // ============================================================
@@ -461,8 +510,12 @@ export function mapeLabel(mape: number): string {
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
-/** Evaluasi holdout: model dilatih tanpa h periode terakhir lalu meramal h periode itu. */
-export function holdoutEvaluate(y: number[]): ForecastResult["holdout"] {
+/**
+ * Evaluasi holdout: model dilatih tanpa h periode terakhir lalu meramal h
+ * periode itu. Pembanding: naif, regresi linear, dan — untuk data musiman —
+ * naif musiman (nilai periode yang sama satu musim sebelumnya).
+ */
+export function holdoutEvaluate(y: number[], s: number | null = null): ForecastResult["holdout"] {
   const n = y.length;
   let h = clamp(Math.round(n * 0.2), 3, 12);
   if (n - h < FORECAST_LIMITS.minTrain) h = n - FORECAST_LIMITS.minTrain;
@@ -470,19 +523,35 @@ export function holdoutEvaluate(y: number[]): ForecastResult["holdout"] {
   const train = y.slice(0, n - h);
   const test = y.slice(n - h);
 
-  const auto = autoArima(train);
+  const auto = autoArima(train, { s });
   if (!auto) return null;
   const fa = forecastArima(train, auto.model, h).mean;
   const naive = new Array<number>(h).fill(train[train.length - 1]);
   const t = train.map((_, i) => i);
   const lr = linreg(t, train);
   const linear = test.map((_, i) => lr.intercept + lr.slope * (train.length + i));
+  const snaive =
+    s && s >= 2 && train.length >= s ? test.map((_, j) => train[train.length - s + (j % s)]) : null;
 
-  const arima = forecastErrors(test, fa);
-  const nv = forecastErrors(test, naive);
-  const ln = forecastErrors(test, linear);
-  const best = arima.rmse <= nv.rmse && arima.rmse <= ln.rmse ? "arima" : nv.rmse <= ln.rmse ? "naive" : "linear";
-  return { h, model: arimaLabel(auto.model), arima, naive: nv, linear: ln, best };
+  const errors: Record<ForecastMethod, ForecastError | null> = {
+    arima: forecastErrors(test, fa),
+    naive: forecastErrors(test, naive),
+    snaive: snaive ? forecastErrors(test, snaive) : null,
+    linear: forecastErrors(test, linear),
+  };
+  // Seri dimenangkan ARIMA (urutan prioritas).
+  const best = (["arima", "snaive", "naive", "linear"] as const)
+    .filter((k) => errors[k])
+    .reduce((a, b) => (errors[b]!.rmse < errors[a]!.rmse ? b : a));
+  return {
+    h,
+    model: arimaLabel(auto.model),
+    arima: errors.arima!,
+    naive: errors.naive!,
+    seasonalNaive: errors.snaive,
+    linear: errors.linear!,
+    best,
+  };
 }
 
 // ============================================================
@@ -503,6 +572,7 @@ function modelSummary(m: ArimaModel): ForecastResult["model"] {
     aicc: m.aicc,
     nEff: m.nEff,
     trendLine: m.trendLine ?? null,
+    ...(isSeasonal(m) ? { P: m.P, D: m.D, Q: m.Q, s: m.s, Phi: m.Phi, Theta: m.Theta } : {}),
   };
 }
 
@@ -516,35 +586,38 @@ export function forecastSeries(
   if (n < FORECAST_LIMITS.minPeriods) {
     return { reason: `ARIMA butuh minimal ${FORECAST_LIMITS.minPeriods} periode (tersedia ${n} ${series.granularity})` };
   }
-  const auto = autoArima(y);
+  const s = series.seasonalPeriod;
+  const auto = autoArima(y, { s });
   if (!auto) return { reason: "model ARIMA tidak bisa diestimasi" };
   const m = auto.model;
+  const seasonalModel = isSeasonal(m);
 
   const h = clamp(Math.round(n / 6), 3, 12);
   const fc = forecastArima(y, m, h);
 
   // Identifikasi: ACF/PACF deret yang sudah stasioner.
-  // Deret yang dimodelkan ARMA: hasil detrend (tren deterministik) atau difference.
+  // Deret yang dimodelkan ARMA: hasil detrend (tren deterministik) atau difference (biasa + musiman).
   const w = m.trendLine
     ? y.map((v, t) => v - m.trendLine!.intercept - m.trendLine!.slope * t)
-    : difference(y, m.d);
-  const K = Math.min(20, Math.max(4, Math.floor(w.length / 4)));
+    : differenceAll(y, m.d, m.D ?? 0, m.s ?? 0);
+  // Lag korelogram mencakup dua musim kalau ada periode musiman (lag s & 2s terlihat).
+  const wantLags = s && s <= ARIMA_LIMITS.maxSeasonalPeriod ? Math.max(20, 2 * s) : 20;
+  const K = Math.min(wantLags, Math.max(4, Math.floor(w.length / 3)));
   const bound = 1.96 / Math.sqrt(w.length);
 
-  // Diagnostik residual.
-  const s = series.seasonalPeriod;
-  const lbLags = Math.min(s && s <= 24 ? 2 * s : 10, Math.floor(m.residuals.length / 5));
-  const lb = ljungBox(m.residuals, lbLags, m.p + m.q);
+  // Diagnostik residual (Ljung-Box lag 2s untuk data musiman, 10 untuk lainnya; df dikurangi semua parameter ARMA).
+  const lbLags = Math.min(s && s <= ARIMA_LIMITS.maxSeasonalPeriod ? 2 * s : 10, Math.floor(m.residuals.length / 5));
+  const lb = ljungBox(m.residuals, lbLags, m.p + m.q + m.Phi.length + m.Theta.length);
   const resBound = 1.96 / Math.sqrt(m.residuals.length);
 
-  // Musiman: ACF positif signifikan di lag musiman (butuh ≥ 3 siklus).
+  // Sisa musiman: ACF positif signifikan di lag musiman deret yang dimodelkan (butuh ≥ 3 siklus).
   let seasonality: ForecastResult["seasonality"] = null;
   if (s && w.length >= 3 * s) {
     const r = acf(w, s)[s - 1];
     seasonality = { period: s, acf: r, significant: r > bound };
   }
 
-  const holdout = holdoutEvaluate(y);
+  const holdout = holdoutEvaluate(y, s);
 
   const notes: string[] = [];
   if (series.droppedEdges.length) {
@@ -554,18 +627,18 @@ export function forecastSeries(
   if (n < FORECAST_LIMITS.recommendedPeriods) {
     notes.push(`Box-Jenkins menyarankan ≥ ${FORECAST_LIMITS.recommendedPeriods} observasi; dengan ${n} periode estimasi kurang stabil.`);
   }
-  if (seasonality?.significant) {
+  if (seasonality?.significant && !seasonalModel) {
     notes.push(
-      `ACF lag ${seasonality.period} signifikan (r = ${seasonality.acf.toFixed(2)}): ada pola musiman per ${seasonality.period} ${series.granularity}. ARIMA non-musiman tidak menangkapnya — ramalan bisa meleset di puncak/lembah musim.`,
+      s && s > ARIMA_LIMITS.maxSeasonalPeriod
+        ? `ACF lag ${seasonality.period} signifikan (r = ${seasonality.acf.toFixed(2)}): ada pola musiman per ${seasonality.period} ${series.granularity}, tapi periode sepanjang ini belum dimodelkan (SARIMA dibatasi s ≤ ${ARIMA_LIMITS.maxSeasonalPeriod}). Coba agregasi bulanan.`
+        : `ACF lag ${seasonality.period} signifikan (r = ${seasonality.acf.toFixed(2)}): ada pola musiman per ${seasonality.period} ${series.granularity} yang tidak tertangkap model — ramalan bisa meleset di puncak/lembah musim.`,
     );
   }
   if (lb && lb.pValue < 0.05) {
     notes.push(`Residual masih berpola (Ljung-Box p = ${lb.pValue.toFixed(3)}): model belum menangkap seluruh struktur, tafsirkan dengan hati-hati.`);
   }
   if (holdout && holdout.best !== "arima") {
-    notes.push(
-      `Pada ${holdout.h} periode uji, metode ${holdout.best === "naive" ? "naif (nilai terakhir)" : "regresi linear"} lebih akurat dari ARIMA.`,
-    );
+    notes.push(`Pada ${holdout.h} periode uji, metode ${methodLabel(holdout.best)} lebih akurat dari ${seasonalModel ? "SARIMA" : "ARIMA"}.`);
   }
   if (m.d === 2) notes.push("d = 2: deret sangat tidak stasioner, rentang ramalan melebar cepat.");
   // Kandidat ber-AICc lebih baik yang ditolak karena akarnya di batas.
@@ -589,7 +662,15 @@ export function forecastSeries(
     history: { labels: series.labels.slice(-keep), values: y.slice(-keep) },
     future: { labels: series.futureLabels(h), mean: fc.mean, lower: fc.lower, upper: fc.upper },
     model: modelSummary(m),
-    identification: { kpss: auto.differencing.steps, acf: acf(w, K), pacf: pacf(w, K), bound },
+    identification: {
+      kpss: auto.differencing.steps,
+      season: auto.differencing.s
+        ? { period: auto.differencing.s, strength: auto.differencing.seasonalStrength, differenced: auto.differencing.D > 0 }
+        : null,
+      acf: acf(w, K),
+      pacf: pacf(w, K),
+      bound,
+    },
     candidates: auto.candidates.slice(0, 5).map((c) => ({ label: arimaLabel(c), aicc: c.aicc })),
     diagnostics: {
       ljungBox: lb,

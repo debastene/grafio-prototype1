@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   acf,
+  arimaLabel,
   autoArima,
+  differenceAll,
+  expandAr,
+  expandMa,
+  seasonalDifference,
+  seasonalStrength,
   chooseDifferencing,
   cssResiduals,
   difference,
@@ -142,6 +148,84 @@ describe("peramalan & bobot ψ", () => {
     const f = forecastArima(y, m, 3);
     expect(f.mean[1] - f.mean[0]).toBeCloseTo(m.mu, 10);
     expect(m.mu).toBeCloseTo((y[39] - y[0]) / 39, 10); // bentuk tertutup, bukan optimasi
+  });
+});
+
+describe("SARIMA — bagian musiman", () => {
+  it("difference musiman & gabungan", () => {
+    expect(seasonalDifference([1, 2, 3, 4, 6, 8, 10, 12], 4, 1)).toEqual([5, 6, 7, 8]);
+    expect(differenceAll([1, 2, 3, 4, 6, 8, 10, 12, 15], 1, 1, 4)).toEqual([1, 1, 1, 1]);
+  });
+
+  it("ekspansi polinomial multiplikatif", () => {
+    // (1 − 0,5B)(1 − 0,3B⁴) = 1 − 0,5B − 0,3B⁴ + 0,15B⁵  →  y_t = 0,5y_{t−1} + 0,3y_{t−4} − 0,15y_{t−5}
+    close(expandAr([0.5], [0.3], 4), [0.5, 0, 0, 0.3, -0.15], 12);
+    // (1 + 0,4B)(1 + 0,6B⁴) = 1 + 0,4B + 0,6B⁴ + 0,24B⁵
+    close(expandMa([0.4], [0.6], 4), [0.4, 0, 0, 0.6, 0.24], 12);
+    expect(expandAr([0.5], [], 12)).toEqual([0.5]);
+  });
+
+  it("kekuatan musiman F_s: tinggi untuk pola musiman, rendah untuk noise", () => {
+    const e = normals(96, 41);
+    const seasonal = e.map((v, t) => 50 + 10 * Math.sin((2 * Math.PI * t) / 12) + v);
+    expect(seasonalStrength(seasonal, 12)!).toBeGreaterThan(0.9);
+    expect(seasonalStrength(e, 12)!).toBeLessThan(0.4);
+    expect(seasonalStrength(e.slice(0, 20), 12)).toBeNull(); // < 2 musim
+  });
+
+  it("AR musiman murni dengan konstanta: CSS = OLS y_t pada y_{t−12}", () => {
+    const e = normals(300, 43);
+    const y: number[] = [];
+    for (let t = 0; t < 300; t++) y.push(t < 12 ? 25 + e[t] : 10 + 0.6 * y[t - 12] + e[t]);
+    const m = fitArima(y, { p: 0, d: 0, q: 0, constant: true, P: 1, D: 0, Q: 0, s: 12 }, 12)!;
+    // OLS bentuk tertutup
+    const xs = y.slice(0, -12);
+    const ys = y.slice(12);
+    const mx = xs.reduce((a, v) => a + v, 0) / xs.length;
+    const my = ys.reduce((a, v) => a + v, 0) / ys.length;
+    let sxy = 0;
+    let sxx = 0;
+    xs.forEach((x, i) => {
+      sxy += (x - mx) * (ys[i] - my);
+      sxx += (x - mx) ** 2;
+    });
+    const slope = sxy / sxx;
+    const intercept = my - slope * mx;
+    expect(m.Phi[0]).toBeCloseTo(slope, 5);
+    expect(m.mu * (1 - m.Phi[0])).toBeCloseTo(intercept, 3);
+    expect(m.phi).toEqual([]);
+  });
+
+  it("random walk musiman: ramalan = nilai musim lalu, se = σ lalu σ√2", () => {
+    const e = normals(80, 47);
+    const y: number[] = [];
+    for (let t = 0; t < 80; t++) y.push(t < 4 ? 100 + 10 * t : y[t - 4] + e[t]);
+    const m = fitArima(y, { p: 0, d: 0, q: 0, constant: false, P: 0, D: 1, Q: 0, s: 4 }, 0)!;
+    const f = forecastArima(y, m, 8);
+    f.mean.forEach((v, j) => expect(v).toBeCloseTo(y[80 - 4 + (j % 4)], 10));
+    const sigma = Math.sqrt(m.sigma2);
+    f.se.forEach((s, j) => expect(s).toBeCloseTo(sigma * (j < 4 ? 1 : Math.SQRT2), 10));
+    close(psiWeights([], [], 0, 8, 1, 4), [1, 0, 0, 0, 1, 0, 0, 0], 12);
+  });
+
+  it("cek akar faktor musiman: |z| = |r|^(1/s)", () => {
+    // 1 − 0,9z → akar 1,11; akar Φ(B¹²) = 1,11^(1/12) ≈ 1,0088 < 1,01 → ditolak
+    expect(rootsOk({ phi: [], theta: [], Phi: [0.9], Theta: [], s: 12 }).ar).toBe(false);
+    expect(rootsOk({ phi: [], theta: [], Phi: [0.5], Theta: [], s: 12 }).ar).toBe(true);
+    expect(rootsOk({ phi: [], theta: [], Phi: [], Theta: [-0.995], s: 12 }).ma).toBe(false);
+  });
+
+  it("autoArima: data musiman → SARIMA; data non-musiman tetap ARIMA", () => {
+    const e = normals(96, 53);
+    const seasonal = e.map((v, t) => 300 + 2 * t + 30 * Math.cos((2 * Math.PI * t) / 12) + 4 * v);
+    const a = autoArima(seasonal, { s: 12 })!;
+    expect(a.differencing.D).toBe(1);
+    expect(arimaLabel(a.model)).toMatch(/^SARIMA\(\d,\d,\d\)\(\d,1,\d\)\[12\]/);
+    expect(rootsOk(a.model)).toEqual({ ar: true, ma: true });
+
+    const b = autoArima(ref.ar2.data, { s: 12 })!;
+    expect(b.differencing.D).toBe(0);
+    expect(arimaLabel(b.model)).toMatch(/^ARIMA/);
   });
 });
 

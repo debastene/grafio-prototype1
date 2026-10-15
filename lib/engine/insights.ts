@@ -11,7 +11,7 @@ import { ColProfile } from "./profile";
 import { aggregateSeries, compactNumber, formatByType, formatP, systematicSample } from "./stats";
 import { Domain } from "./domain";
 import { MultivariateResult, kmoLabel } from "./multivariate";
-import { ForecastBundle, mapeLabel } from "./forecast";
+import { ForecastBundle, mapeLabel, methodLabel } from "./forecast";
 
 export type Insight = {
   type: "trend" | "anomaly" | "target" | "idea";
@@ -228,8 +228,8 @@ export function forecastInsight(fc: ForecastBundle | null | undefined, profiles:
   const evalText = !ho
     ? ""
     : ho.best === "arima"
-      ? ` Diuji pada ${ho.h} periode terakhir: ARIMA paling akurat${ho.arima.mape !== null ? ` (MAPE ${ho.arima.mape.toFixed(1)}%, ${mapeLabel(ho.arima.mape)})` : ""}, mengalahkan metode naif & regresi linear.`
-      : ` Catatan: pada ${ho.h} periode uji, metode ${ho.best === "naive" ? "naif (nilai terakhir)" : "regresi linear"} lebih akurat dari ARIMA — pakai ramalan ini sebagai gambaran kasar.`;
+      ? ` Diuji pada ${ho.h} periode terakhir: ${ho.model.split("(")[0]} paling akurat${ho.arima.mape !== null ? ` (MAPE ${ho.arima.mape.toFixed(1)}%, ${mapeLabel(ho.arima.mape)})` : ""}, mengalahkan metode naif${ho.seasonalNaive ? ", naif musiman" : ""} & regresi linear.`
+      : ` Catatan: pada ${ho.h} periode uji, metode ${methodLabel(ho.best)} lebih akurat dari model ini — pakai ramalan ini sebagai gambaran kasar.`;
   return {
     type: "trend",
     title: `Ramalan ${f.column}: ${v(f.future.mean[last])} dalam ${h} ${f.granularity}`,

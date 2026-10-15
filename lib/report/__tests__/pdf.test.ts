@@ -77,6 +77,27 @@ describe("generateReport", () => {
     expect(raw).not.toContain("−"); // minus Unicode tidak boleh lolos ke font bawaan
   });
 
+  it("data musiman → bab peramalan memakai SARIMA & naif musiman", async () => {
+    const rand = mulberry32(12);
+    const noise = () => Math.sqrt(-2 * Math.log(Math.max(rand(), 1e-12))) * Math.cos(2 * Math.PI * rand());
+    const lines = ["bulan,penjualan"];
+    for (let k = 0; k < 72; k++) {
+      // Puncak akhir tahun (Des), lembah pertengahan tahun — pola ritel.
+      const season = 900 * Math.cos((2 * Math.PI * (k - 11)) / 12);
+      lines.push(`${new Date(Date.UTC(2020, k, 1)).toISOString().slice(0, 10)},${Math.round(6000 + 30 * k + season + 150 * noise())}`);
+    }
+    const r = await analyzeFile(new File([lines.join("\n")], "ritel-musiman.csv"), "");
+    expect(r.forecasts?.items[0].model.label).toMatch(/^SARIMA/);
+    const blob = await generateReport(r);
+    if (process.env.GRAFIO_PDF_OUT) {
+      writeFileSync(process.env.GRAFIO_PDF_OUT.replace(/\.pdf$/, "-sarima.pdf"), Buffer.from(await blob.arrayBuffer()));
+    }
+    const raw = await pdfText(blob);
+    expect(raw).toContain("SARIMA");
+    expect(raw).toMatch(/B\^12/); // faktor musiman di persamaan ASCII
+    expect(raw).toContain("naif musiman");
+  });
+
   it("proyek lama tanpa hasil multivariat tetap bisa diekspor", async () => {
     const r = await analyzeFile(new File([customerCsv()], "pelanggan.csv"), "");
     const raw = await pdfText(await generateReport({ ...r, multivariate: undefined }));
